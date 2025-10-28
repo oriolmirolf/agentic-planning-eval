@@ -1,0 +1,8 @@
+typer>=0.12.4
+rich>=13.7.0
+pydantic>=2.7.0
+pandas>=2.2.0
+networkx>=3.2.1
+# Optional pretty PDDL parsing (not required for signatures)
+# pddl>=0.4.3
+openai>=1.46.0
