@@ -6,3 +6,4 @@ networkx>=3.2.1
 # Optional pretty PDDL parsing (not required for signatures)
 # pddl>=0.4.3
 openai>=1.46.0
+python-dotenv
