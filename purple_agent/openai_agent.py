@@ -1,7 +1,7 @@
 from __future__ import annotations
 import os
 from typing import Optional
-from .base import PurpleAgent
+from purple_agent.base import PurpleAgent
 
 def _extract_text_from_responses(resp) -> str:
     # 1) The official property on Responses API objects

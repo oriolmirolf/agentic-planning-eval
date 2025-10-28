@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json, urllib.request
-from .base import PurpleAgent
+from purple_agent.base import PurpleAgent
 
 class HTTPPurpleAgent(PurpleAgent):
     def __init__(self, url: str, timeout: float = 60.0) -> None:

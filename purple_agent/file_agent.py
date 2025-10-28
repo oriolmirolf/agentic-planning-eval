@@ -1,5 +1,5 @@
 from __future__ import annotations
-from .base import PurpleAgent
+from purple_agent.base import PurpleAgent
 
 class FilePurpleAgent(PurpleAgent):
     def __init__(self, path: str) -> None:
