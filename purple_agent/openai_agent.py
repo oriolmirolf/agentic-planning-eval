@@ -70,14 +70,6 @@ class OpenAIPurpleAgent(PurpleAgent):
 
         return _extract_text_from_responses(resp)
 
-    def generate_plan(self, *, problem_nl: str, actions_nl: str, formatting_instructions: str) -> str:
-        prompt = f"""You are a classical planner.
-Problem description:
-{problem_nl}
-
-You can use ONLY these action schemas (names and arg order must match exactly):
-{actions_nl}
-
-{formatting_instructions}
-"""
+    def generate_plan(self, *, problem_nl: str) -> str:
+        prompt = problem_nl
         return self._responses_create(prompt)

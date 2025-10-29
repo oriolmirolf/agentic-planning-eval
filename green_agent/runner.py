@@ -56,31 +56,14 @@ def evaluate_once(cfg: EvalConfig) -> Dict[str, Any]:
     run_dir = _make_run_dir(cfg.out_dir, cfg.domain_path)
 
     # base prompt
-    problem_nl = load_text(cfg.prompt_path) or "You will be given a planning problem; produce a correct plan."
-
-    # extract actions + semantics from domain
-    actions_sig = actions_from_domain(cfg.domain_path).strip()
-    semantics   = semantics_from_domain(cfg.domain_path).strip()
-
-    # build the single prompt the purple agent sees
-    parts = [problem_nl]
-    if actions_sig:
-        parts.append("Actions you can use (schemas):\n```\n" + actions_sig + "\n```")
-    if semantics:
-        parts.append("Action semantics (preconditions/effects):\n```\n" + semantics + "\n```")
-    problem_with_actions = "\n\n".join(parts).strip()
-
+    problem_nl = load_text(cfg.prompt_path).strip()
 
     # purple agent
     purple = build_purple(cfg.purple_kind, url=cfg.purple_url, model=cfg.openai_model, temperature=cfg.temperature)
 
     # call purple with the combined prompt; we send an empty 'actions_nl' to avoid duplication
     t0 = time.time()
-    plan_raw = purple.generate_plan(
-        problem_nl=problem_with_actions,
-        actions_nl="",   # <<< nothing here; all info is already in the main prompt
-        formatting_instructions=FORMAT_INSTRUCTIONS
-    )
+    plan_raw = purple.generate_plan(problem_nl=problem_nl)
     t1 = time.time()
 
     raw_path = os.path.join(run_dir, "purple_raw.txt")

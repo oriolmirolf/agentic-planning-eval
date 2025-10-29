@@ -15,15 +15,15 @@ def _resolve_paths(example: Optional[str], index: Optional[int]) -> dict[str, Op
 
     if index is not None:
         problem = base / f"problem{index}.pddl"
-        prompt  = base / f"sample_prompt{index}.md"
+        prompt  = base / f"prompt{index}.md"
         # fallback to unindexed if missing
         if not problem.exists():
             problem = base / "problem.pddl"
         if not prompt.exists():
-            prompt = base / "sample_prompt.md"
+            prompt = base / "prompt.md"
     else:
         problem = base / "problem.pddl"
-        prompt  = base / "sample_prompt.md"
+        prompt  = base / "prompt.md"
 
     def ok(p: Path) -> Optional[str]:
         return str(p) if p.exists() else None
@@ -34,7 +34,7 @@ def _resolve_paths(example: Optional[str], index: Optional[int]) -> dict[str, Op
 def evaluate(
     # problem selection
     example: Optional[str] = typer.Option(None, help="Example folder name under ./examples (e.g., 'blocks')"),
-    index: Optional[int] = typer.Option(None, help="Problem index (uses problem{index}.pddl / sample_prompt{index}.md if present)"),
+    index: Optional[int] = typer.Option(None, help="Problem index (uses problem{index}.pddl / prompt{index}.md if present)"),
     # purple agent selection
     purple: str = typer.Option("openai", help="openai | http | file"),
     purple_url: Optional[str] = typer.Option(None, help="HTTP endpoint for purple agent, or file path for --purple file"),
