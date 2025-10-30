@@ -1,19 +1,51 @@
-You are given a Blocks World problem with 3 blocks (a, b, c).
+You are solving a **blocks world** planning task with three distinct blocks: **a**, **b**, and **c**. There is a single robot hand that can hold at most one block at a time.
 
-Initial state (English, but the PDDL is available to the evaluator):
-- All three blocks a, b, c are on the table.
-- All three blocks are clear.
-- The hand is empty.
+### World description
 
-Goal:
-- Stack a on b, and b on c. That is: (on a b) and (on b c)
+* A block can be **on** another block (e.g., “a on b”).
+* A block can be **on the table**.
+* A block is **clear** if nothing is on top of it.
+* The hand is either **empty** or **holding** exactly one block.
 
-Actions you can use come from the domain; their schemas (names & argument order) are provided separately.
+### Available actions (each action costs 1)
 
-Output format:
-- Return ONLY the plan in a single fenced code block.
-- Lowercase action names; lowercase object names a,b,c.
-- One grounded action per line, e.g.
+* **pick-up x**: Pick up block x **from the table**. Allowed only if x is clear and the hand is empty.
+* **put-down x**: Put down block x **onto the table**. Allowed only if the hand is holding x.
+* **stack x y**: Place the held block x **on top of** block y. Allowed only if the hand is holding x and y is clear.
+* **unstack x y**: Lift block x **off** block y. Allowed only if x is on y, x is clear, and the hand is empty.
+
+**Effects (intuitive):**
+
+* Picking up removes the block from the table, makes the hand not empty, and the block not clear.
+* Putting down places the block on the table, makes it clear, and frees the hand.
+* Stacking frees the hand, makes x clear on top, and y not clear.
+* Unstacking makes the hand hold x, clears y, and removes the “on x y” relation.
+
+### Initial state
+
+* a, b, and c are all **on the table**.
+* a, b, and c are **clear**.
+* The hand is **empty**.
+
+### Goal state
+
+* **a is on b**
+* **b is on c**
+  (i.e., a on b on c)
+
+### Objective
+
+* Find a sequence of actions that achieves the goal from the initial state.
+* Minimize the number of actions (each costs 1).
+* Use only the listed actions.
+* Assume a deterministic, fully observable environment with no parallel actions.
+
+### Output format
+
+* Return **only** the plan, in a **single fenced code block**.
+* Use **lowercase** for all action and object names.
+* Include **one grounded action per line**, for example:
+
 ```
 (pick-up a)
 (stack a b)

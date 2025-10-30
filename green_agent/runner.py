@@ -1,3 +1,4 @@
+
 # green_agent/runner.py
 from __future__ import annotations
 import os, json, time
@@ -7,7 +8,7 @@ from rich.table import Table
 
 from .config import EvalConfig
 from .plan_parser import extract_plan, pretty
-from .pddl_actions import actions_from_domain, semantics_from_domain   # <-- add semantics
+from .pddl_actions import actions_from_domain, semantics_from_domain   # (kept import if you use it later)
 from .metrics import compute_metrics
 
 from purple_agent.openai_agent import OpenAIPurpleAgent
@@ -16,15 +17,6 @@ from purple_agent.file_agent import FilePurpleAgent
 
 console = Console()
 
-FORMAT_INSTRUCTIONS = """
-Output ONLY the plan in a single fenced code block. One grounded action per line.
-Use parentheses, lowercase action names, and the object names from the problem text.
-Do NOT include explanations. Example format:
-```
-(action-name arg1 arg2)
-(another-action x y z)
-```
-""".strip()
 
 def load_text(path: Optional[str]) -> str:
     if not path: return ""
@@ -58,50 +50,56 @@ def evaluate_once(cfg: EvalConfig) -> Dict[str, Any]:
     # base prompt
     problem_nl = load_text(cfg.prompt_path).strip()
 
-    # purple agent
     purple = build_purple(cfg.purple_kind, url=cfg.purple_url, model=cfg.openai_model, temperature=cfg.temperature)
 
-    # call purple with the combined prompt; we send an empty 'actions_nl' to avoid duplication
     t0 = time.time()
     plan_raw = purple.generate_plan(problem_nl=problem_nl)
     t1 = time.time()
 
     raw_path = os.path.join(run_dir, "purple_raw.txt")
-    with open(raw_path, "w", encoding="utf-8") as f: f.write(plan_raw)
+    with open(raw_path, "w", encoding="utf-8") as f:
+        f.write(plan_raw)
 
     extracted = extract_plan(plan_raw)
     plan_txt = extracted.to_val_plan_text()
     plan_path = os.path.join(run_dir, "purple.plan")
-    with open(plan_path, "w", encoding="utf-8") as f: f.write(plan_txt)
+    with open(plan_path, "w", encoding="utf-8") as f:
+        f.write(plan_txt)
 
     metrics = compute_metrics(domain=cfg.domain_path, problem=cfg.problem_path, plan_text=plan_txt, val_path=cfg.val_path)
+
+    # Save full validator stdout for post-mortem (write in BINARY to avoid ^Z/CRLF issues on Windows/WSL)
+    val_stdout_path = os.path.join(run_dir, "val_stdout.txt")
+    with open(val_stdout_path, "wb") as f:  # binary write
+        f.write((metrics.val_stdout or "").encode("utf-8", errors="replace"))
 
     table = Table(title="Green Agent — Plan Evaluation")
     table.add_column("Metric"); table.add_column("Value")
     table.add_row("Valid", str(metrics.valid))
-    table.add_row("Coherent", str(metrics.coherence))
     table.add_row("Length", str(metrics.length))
     table.add_row("Cost/Value", str(metrics.cost_value))
     table.add_row("Unsat preconds", str(metrics.unsat_count))
     table.add_row("First failure at", str(metrics.first_failure_at))
     table.add_row("Redundant steps", ", ".join(map(str, metrics.redundant_indices)) or "—")
-    table.add_row("Minimality", f"{metrics.minimality_ratio:.2f}")
     table.add_row("LLM Latency (s)", f"{t1 - t0:.2f}")
+    if not metrics.valid:
+        table.add_row("Reason", metrics.failure_reason or "unknown")
+        table.add_row("VAL log", val_stdout_path)
     console.print(table)
 
     record = {
         "domain": cfg.domain_path,
         "problem": cfg.problem_path,
         "valid": metrics.valid,
-        "coherence": metrics.coherence,
         "length": metrics.length,
         "cost_value": metrics.cost_value,
         "unsat_count": metrics.unsat_count,
         "first_failure_at": metrics.first_failure_at,
         "redundant_indices": metrics.redundant_indices,
-        "minimality_ratio": metrics.minimality_ratio,
         "raw_plan_path": raw_path,
         "norm_plan_path": plan_path,
+        "val_stdout_path": val_stdout_path,
+        "failure_reason": metrics.failure_reason,
         "run_dir": run_dir,
     }
     return record
