@@ -42,9 +42,9 @@ def evaluate(
     val_path: Optional[str] = typer.Option(None, help="Path to VAL (Validate) binary"),
     model: Optional[str] = typer.Option(None, help="OpenAI model name (for purple=openai)"),
     temperature: float = typer.Option(0.0, help="LLM temperature for the openai purple agent"),
-    attempts: int = typer.Option(3, min=1, help="Max plan-repair attempts"),  # kept for future use
+    attempts: int = typer.Option(3, min=1, help="Max plan-repair attempts"),  # unused rn! kept for future use
+    check_redundancy: Optional[bool] = typer.Option(False, help="Whether to check for redundant actions in the plan"),
 ):
-    # Resolve paths from --example/--index (explicit paths no longer used in this simplified CLI)
     auto = _resolve_paths(example, index)
     domain = auto["domain"]
     problem = auto["problem"]
@@ -64,11 +64,11 @@ def evaluate(
         openai_model=model,
         temperature=temperature,
         attempts=attempts,
+        check_redundancy=check_redundancy,
     )
 
     record = evaluate_once(cfg)
 
-    # ---- Always append to out/record.json (newline-delimited JSON) ----
     os.makedirs(out, exist_ok=True)
     default_record_path = os.path.join(out, "record.json")
     with open(default_record_path, "a", encoding="utf-8") as f:
