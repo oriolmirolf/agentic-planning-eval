@@ -23,15 +23,15 @@ You are solving a **blocks world** planning task with three distinct blocks: **a
 
 ### Initial state
 
-* a, b, and c are all **on the table**.
-* a, b, and c are **clear**.
+* f, h, and q are all **on the table**.
+* f, h, and q are **clear**.
 * The hand is **empty**.
 
 ### Goal state
 
-* **a is on b**
-* **b is on c**
-  (i.e., a on b on c)
+* **f is on h**
+* **h is on q**
+  (i.e., f on h on q)
 
 ### Objective
 

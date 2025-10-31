@@ -1,13 +1,13 @@
 (define (problem bw-3)
   (:domain blocks)
-  (:objects a b c - block)
+  (:objects f h q - block)
   (:init
-    (ontable a) (ontable b) (ontable c)
-    (clear a) (clear b) (clear c)
+    (ontable f) (ontable h) (ontable q)
+    (clear f) (clear h) (clear q)
     (handempty)
   )
   (:goal
-    (and (on a b) (on b c))
+    (and (on f h) (on h q))
   )
   (:metric minimize (total-cost))
 )

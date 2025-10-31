@@ -100,7 +100,6 @@ def run_val(
         cmd = [bin_path, *flags, domain, problem, plan_path]
         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         out, err = proc.stdout, proc.stderr
-        print(out)
 
         ok = bool(_SUCCESS_RE.search(out)) and not _FAILED_RE.search(out)
 
