@@ -36,15 +36,14 @@ def evaluate(
     example: Optional[str] = typer.Option(None, help="Example folder name under ./examples (e.g., 'blocks')"),
     index: Optional[int] = typer.Option(None, help="Problem index (uses problem{index}.pddl / prompt{index}.md if present)"),
     # purple agent selection
-    purple: str = typer.Option("openai", help="openai | http | file"),
-    purple_url: Optional[str] = typer.Option(None, help="HTTP endpoint for purple agent, or file path for --purple file"),
+    purple: str = typer.Option("openai", help="openai | a2a"),
+    purple_url: Optional[str] = typer.Option(None, help="A2A endpoint of the purple agent (required if --purple a2a)"),
     out: str = typer.Option("out", help="Output directory (a fresh subfolder is created per run)"),
     val_path: Optional[str] = typer.Option(None, help="Path to VAL (Validate) binary"),
     model: Optional[str] = typer.Option(None, help="OpenAI model name (for purple=openai)"),
-    temperature: float = typer.Option(0.0, help="LLM temperature for the openai purple agent"),
-    attempts: int = typer.Option(3, min=1, help="Max plan-repair attempts"),  # unused rn! kept for future use
-    check_redundancy: Optional[bool] = typer.Option(False, help="Whether to check for redundant actions in the plan"),
+    check_redundancy: bool = typer.Option(False, help="Whether to check for redundant actions in the plan"),
 ):
+
     auto = _resolve_paths(example, index)
     domain = auto["domain"]
     problem = auto["problem"]
@@ -62,8 +61,6 @@ def evaluate(
         purple_url=purple_url,
         prompt_path=prompt,
         openai_model=model,
-        temperature=temperature,
-        attempts=attempts,
         check_redundancy=check_redundancy,
     )
 
@@ -85,7 +82,11 @@ def validate_plan(
     from .val_wrapper import run_val
     with open(plan, "r", encoding="utf-8") as f:
         plan_text = f.read()
-    res = run_val(domain, problem, plan_text, val_path=val_path)
+        
+    cfg = EvalConfig(domain_path=domain, problem_path=problem, val_path=val_path)
+    flags = (*cfg.val_flags, "-t", str(cfg.tolerance))
+    res = run_val(domain, problem, plan_text, val_path=val_path, flags=flags)
+    
     typer.echo("VALID" if res.ok else "INVALID")
     if res.value is not None:
         typer.echo(f"Value: {res.value}")

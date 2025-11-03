@@ -21,7 +21,7 @@ _ADVICE_SET_RE = re.compile(
     re.IGNORECASE
 )
 
-@dataclass
+@dataclass(slots=True)
 class PlanMetrics:
     valid: bool
     length: int
@@ -122,19 +122,22 @@ def compute_metrics(
             first_failed_action = st.action
             break
 
-    # quick redundancy probe (remove-one validation)+
+    # quick redundancy check (remove-one validation)
     redundant = None
-    if check_redundancy:
-        redundant: list[int] = []
-        if length > 0:
-            lines = [ln for ln in plan_text.splitlines() if ln.strip()]
-            for i in range(len(lines)):
-                if not lines[i].strip().startswith("("):
-                    continue
-                variant = "\n".join(lines[j] for j in range(len(lines)) if j != i) + "\n"
-                res = run_val(domain, problem, variant, val_path=val_path, flags=flags)
-                if res.ok:
-                    redundant.append(i + 1)  # 1-based
+    if check_redundancy and length > 0:
+        redundant = []
+        lines = [ln for ln in plan_text.splitlines() if ln.strip()]
+        # consider only action lines; map from action index -> original line index
+        action_line_idxs = [idx for idx, ln in enumerate(lines) if ln.strip().startswith("(")]
+        for k, remove_idx in enumerate(action_line_idxs):
+            # build variant skipping exactly this action line
+            variant = "\n".join(
+                lines[j] for j in range(len(lines)) if j != remove_idx
+            ) + "\n"
+            res = run_val(domain, problem, variant, val_path=val_path, flags=flags)
+            if res.ok:
+                redundant.append(k + 1)  # 1-based among ACTIONS
+
 
     # Advice parsing
     advice_by_time = _parse_advice_by_time(base.stdout or "")

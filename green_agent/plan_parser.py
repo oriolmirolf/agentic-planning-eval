@@ -1,17 +1,16 @@
 from __future__ import annotations
 import re
 from dataclasses import dataclass
-from typing import Iterable, List, Optional
+from typing import List
 
 CODE_BLOCK_RE = re.compile(r"```[a-zA-Z0-9_-]*\n(.*?)\n```", re.DOTALL)
 ACTION_LINE_RE = re.compile(r"""^\s*(?:\d+\s*[:.]\s*)?(?:\d+\.\d+\s*:\s*)?\(\s*([a-zA-Z0-9_-]+)(?:\s+[^)]*)?\)\s*(?:;.*)?$""", re.VERBOSE | re.IGNORECASE)
 
-@dataclass
+@dataclass(slots=True)
 class PlanStep:
-    idx: int
     text: str
 
-@dataclass
+@dataclass(slots=True)
 class ExtractedPlan:
     steps: List[PlanStep]
     def to_val_plan_text(self) -> str:
@@ -26,8 +25,5 @@ def extract_plan(raw: str) -> ExtractedPlan:
         if ACTION_LINE_RE.match(ln):
             action = ln[ln.index("("):] if "(" in ln else ln
             action = re.sub(r"\s+", " ", action)
-            steps.append(PlanStep(idx=len(steps)+1, text=action.strip()))
+            steps.append(PlanStep(text=action.strip()))
     return ExtractedPlan(steps=steps)
-
-def pretty(steps: Iterable[PlanStep]) -> str:
-    return "\n".join(f"{s.idx:02d}: {s.text}" for s in steps)

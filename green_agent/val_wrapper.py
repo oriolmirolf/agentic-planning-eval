@@ -1,20 +1,20 @@
 # green_agent/val_wrapper.py
 from __future__ import annotations
-import os, shutil, subprocess, tempfile, re, json
+import os, shutil, subprocess, tempfile, re
 from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict
 
 def _guess_val_binary(explicit: Optional[str]) -> Optional[str]:
     if explicit and os.path.exists(explicit):
         return explicit
     for name in ("Validate", "validate", "Validate.exe", "validate.exe"):
-        path = shutil.which(name) or (explicit if explicit else None)
+        path = shutil.which(name)
         if path and os.path.exists(path):
             return path
     envp = os.getenv("VAL_PATH")
     if envp and os.path.exists(envp):
         return envp
-    return shutil.which("Validate") or shutil.which("validate")
+    return None
 
 # --- Patterns seen across VAL variants ---
 _UNSAT_RE = re.compile(r"Unsatisfied precondition", re.IGNORECASE)
@@ -33,12 +33,12 @@ _PLAN_INDEX_RE = re.compile(r"^\s*(\d+)\s*:\s*$")      # "1:" then action on nex
 _ADDING_RE = re.compile(r"^\s*Adding\s*\((.+)\)\s*$", re.IGNORECASE)
 _DELETING_RE = re.compile(r"^\s*Deleting\s*\((.+)\)\s*$", re.IGNORECASE)
 
-@dataclass
+@dataclass(slots=True)
 class Unsat:
     at_action_index: Optional[int]
     detail: str
 
-@dataclass
+@dataclass(slots=True)
 class TraceStep:
     time: int
     action: Optional[str] = None
@@ -47,7 +47,7 @@ class TraceStep:
     failed: bool = False
     failure_detail: Optional[str] = None
 
-@dataclass
+@dataclass(slots=True)
 class ValResult:
     ok: bool
     stdout: str

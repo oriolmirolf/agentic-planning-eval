@@ -50,8 +50,7 @@ class OpenAIPurpleAgent(PurpleAgent):
         # Prefer the modern Responses API (OpenAI SDK 2.x)
         from openai import OpenAI  # type: ignore
         self._client = OpenAI()
-        self._mode = "responses"
-
+        
     def _responses_create(self, prompt: str) -> str:
         # Official pattern: pass a simple string via 'input', then read 'output_text'
         # https://platform.openai.com/docs/guides/text  and  https://platform.openai.com/docs/api-reference/responses

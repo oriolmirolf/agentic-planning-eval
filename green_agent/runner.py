@@ -11,8 +11,8 @@ from .plan_parser import extract_plan
 from .metrics import compute_metrics
 
 from purple_agent.openai_agent import OpenAIPurpleAgent
-from purple_agent.http_agent import HTTPPurpleAgent
-from purple_agent.file_agent import FilePurpleAgent
+from purple_agent.a2a_agent import A2APurpleAgent
+
 
 console = Console()
 
@@ -21,15 +21,13 @@ def load_text(path: Optional[str]) -> str:
     with open(path, "r", encoding="utf-8") as f:
         return f.read().strip()
 
-def build_purple(kind: str, *, url: Optional[str], model: Optional[str], temperature: float):
-    if kind == "openai": return OpenAIPurpleAgent(model=model, temperature=temperature)
-    if kind == "http":
-        if not url: raise SystemExit("--purple=http requires --purple-url http://...")
-        return HTTPPurpleAgent(url)
-    if kind == "file":
-        if not url: raise SystemExit("--purple=file requires --purple-url <path to plan file>")
-        return FilePurpleAgent(url)
-    raise SystemExit(f"Unknown purple kind: {kind}")
+def build_purple(kind: str, *, model: Optional[str], a2a_url: Optional[str]):
+    if kind == "openai":
+        return OpenAIPurpleAgent(model=model)
+    if kind == "a2a":
+        if not a2a_url:
+            raise SystemExit("Missing purple_url for 'a2a' purple.")
+        return A2APurpleAgent(url=a2a_url)
 
 def _make_run_dir(base_out: str, domain_path: str) -> str:
     example = Path(domain_path).parent.name or "run"
@@ -40,9 +38,9 @@ def _make_run_dir(base_out: str, domain_path: str) -> str:
 
 def evaluate_once(cfg: EvalConfig) -> Dict[str, Any]:
     run_dir = _make_run_dir(cfg.out_dir, cfg.domain_path)
-    problem_nl = load_text(cfg.prompt_path).strip()
+    problem_nl = load_text(cfg.prompt_path)
 
-    purple = build_purple(cfg.purple_kind, url=cfg.purple_url, model=cfg.openai_model, temperature=cfg.temperature)
+    purple = build_purple(cfg.purple_kind, model=cfg.openai_model, a2a_url=cfg.purple_url)
 
     t0 = time.time()
     plan_raw = purple.generate_plan(problem_nl=problem_nl)
