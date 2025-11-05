@@ -1,0 +1,1 @@
+- [ ] make sure it is easy to run 

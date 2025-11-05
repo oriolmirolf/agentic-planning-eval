@@ -90,6 +90,7 @@ def run_val(
     flags: Tuple[str, ...] = ("-v","-e")
 ) -> ValResult:
     bin_path = _guess_val_binary(val_path)
+    print(f"bin_path: {bin_path}")
     if not bin_path:
         raise RuntimeError("VAL binary not found. Install or set VAL_PATH.")
 
