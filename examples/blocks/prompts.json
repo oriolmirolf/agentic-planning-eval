@@ -1,0 +1,75 @@
+{
+  "domain_prompt": "You are a planning agent in a simplified Blocks World.\n\nObjects & state:\n- Labeled blocks: A, B, C, … (rigid, same size).\n- One robot hand (the hand) that can hold at most one block.\n- A block is always exactly one of: on the table, on top of exactly one other block, or being held.\n- A block is clear iff nothing is on top of it.\n- The table can hold any number of separate stacks.\n- Unless stated otherwise, the hand starts empty.\n\nLegal actions (use these exact action names):\n1) pick-up X — Preconditions: hand is empty; X is on the table; X is clear. Effects: hand holds X; X is no longer on the table; X is not clear; hand is not empty.\n2) put-down X — Preconditions: hand holds X. Effects: X is on the table and clear; hand is empty; hand no longer holds X.\n3) unstack X Y — Preconditions: hand is empty; X is on Y; X is clear. Effects: hand holds X; X is no longer on Y; Y becomes clear; hand is not empty; X is not clear.\n4) stack X Y — Preconditions: hand holds X; Y is clear. Effects: X is on Y; hand is empty; hand no longer holds X; X becomes clear; Y becomes not clear.\n\nInvariants:\n- No block can be in two places at once.\n- A block cannot be both held and on something.\n- Only clear blocks can be moved; only clear blocks can receive another block on top; no cycles.\n\nYOUR JOB: Given an initial arrangement and a goal arrangement, return a valid sequence of actions that achieves the goal.\n\nOUTPUT REQUIREMENTS (IMPORTANT): Return ONLY a fenced code block containing one PDDL-style action per line using exactly these names: (pick-up X), (put-down X), (unstack X Y), (stack X Y). Use exactly the object names provided (e.g., A, B, C). No numbering, no extra commentary. Example format:\n```\n(unstack C B)\n(put-down C)\n(pick-up A)\n(stack A B)\n```",
+  "problems": [
+    {
+      "id": "p01",
+      "prompt": "Blocks: A, B, C. Initial: A, B, C are each on the table and clear; hand empty. Goal: A on B and B on C (tower top→bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "initial_ascii": "[A]   [B]   [C]\n----  ----  ----",
+      "goal_ascii": "[A]\n[B]\n[C]\n----",
+      "optimal_cost": 4
+    },
+    {
+      "id": "p02",
+      "prompt": "Blocks: A, B, C. Initial: B on A (A on table); C on table. B and C are clear; hand empty. Goal: A on C and B on A (tower top→bottom: B, A, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "initial_ascii": "[B]   [C]\n[A]   ----\n----",
+      "goal_ascii": "[B]\n[A]\n[C]\n----",
+      "optimal_cost": 6
+    },
+    {
+      "id": "p03",
+      "prompt": "Blocks: A, B, C. Initial: C on B on A (A on table). C is clear; hand empty. Goal: A on B and B on C (tower top→bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "initial_ascii": "[C]\n[B]\n[A]\n----",
+      "goal_ascii": "[A]\n[B]\n[C]\n----",
+      "optimal_cost": 6
+    },
+    {
+      "id": "p04",
+      "prompt": "Blocks: A, B, C, D. Initial: Two towers: A on B (B on table) and D on C (C on table). A and D are clear; hand empty. Goal: Single tower A on B on C on D (top→bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
+      "initial_ascii": "[A]   [D]\n[B]   [C]\n----  ----",
+      "goal_ascii": "[A]\n[B]\n[C]\n[D]\n----",
+      "optimal_cost": 10
+    },
+    {
+      "id": "p05",
+      "prompt": "Blocks: A, B, C, D. Initial: D on C on B on A (A on table). D is clear; hand empty. Goal: A on B on C on D (top→bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
+      "initial_ascii": "[D]\n[C]\n[B]\n[A]\n----",
+      "goal_ascii": "[A]\n[B]\n[C]\n[D]\n----",
+      "optimal_cost": 8
+    },
+    {
+      "id": "p06",
+      "prompt": "Blocks: A, B, C, D, E. Initial: A, B, C, D, E are each on the table and clear; hand empty. Goal: E on D on C on B on A (top→bottom: E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "initial_ascii": "[A] [B] [C] [D] [E]\n---- ---- ---- ---- ----",
+      "goal_ascii": "[E]\n[D]\n[C]\n[B]\n[A]\n----",
+      "optimal_cost": 8
+    },
+    {
+      "id": "p07",
+      "prompt": "Blocks: A, B, C, D, E. Initial: C on B on A (A on table) and E on D (D on table). C and E are clear; hand empty. Goal: Single tower A on B on C on D on E (top→bottom: A, B, C, D, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "initial_ascii": "[C]   [E]\n[B]   [D]\n[A]   ----\n----",
+      "goal_ascii": "[A]\n[B]\n[C]\n[D]\n[E]\n----",
+      "optimal_cost": 10
+    },
+    {
+      "id": "p08",
+      "prompt": "Blocks: A, B, C, D, E. Initial: Three stacks: B on A (A on table), D on C (C on table), and E alone on the table. B, D, E are clear; hand empty. Goal: Single tower C on D on B on A on E (top→bottom: C, D, B, A, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "initial_ascii": "[B]   [D]   [E]\n[A]   [C]   ----\n----  ----",
+      "goal_ascii": "[C]\n[D]\n[B]\n[A]\n[E]\n----",
+      "optimal_cost": 16
+    },
+    {
+      "id": "p09",
+      "prompt": "Blocks: A, B, C, D, E, F. Initial: A, B, C, D, E, F are each on the table and clear; hand empty. Goal: F on E on D on C on B on A (top→bottom: F, E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F exactly; no extra text.",
+      "initial_ascii": "[A] [B] [C] [D] [E] [F]\n---- ---- ---- ---- ---- ----",
+      "goal_ascii": "[F]\n[E]\n[D]\n[C]\n[B]\n[A]\n----",
+      "optimal_cost": 10
+    },
+    {
+      "id": "p10",
+      "prompt": "Blocks: A, B, C, D, E, F, G. Initial: Two towers: C on B on A (A on table) and G on F on E on D (D on table). C and G are clear; hand empty. Goal: Single tower A on B on C on D on E on F on G (top→bottom: A, B, C, D, E, F, G). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F, G exactly; no extra text.",
+      "initial_ascii": "[C]   [G]\n[B]   [F]\n[A]   [E]\n----  [D]\n      ----",
+      "goal_ascii": "[A]\n[B]\n[C]\n[D]\n[E]\n[F]\n[G]\n----",
+      "optimal_cost": 14
+    }
+  ]
+}

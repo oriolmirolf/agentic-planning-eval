@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import uvicorn
 from pydantic import BaseModel, HttpUrl, ValidationError
@@ -33,14 +33,10 @@ from .cli import _resolve_paths  # reuse your path resolver
 log = logging.getLogger("pddl_green")
 
 
-# ---- IO schema (minimal) -----------------------------------------------------
-
 class EvalRequest(BaseModel):
     participants: dict[str, HttpUrl]  # e.g. {"planner": "http://..."}
-    config: dict[str, Any]            # e.g. {"example": "blocks", "index": 1, "check_redundancy": true}
+    config: dict[str, Any]            # e.g. {"domain": "blocks", "index": 1, "check_redundancy": true}
 
-
-# ---- Minimal green agent interface -------------------------------------------
 
 class GreenAgent:
     async def run_eval(self, request: EvalRequest, updater: TaskUpdater) -> None: ...
@@ -48,8 +44,6 @@ class GreenAgent:
 
 
 class PDDLGreen(GreenAgent):
-    """Wraps your evaluate_once() with A2A plumbing."""
-
     def validate_request(self, request: EvalRequest) -> tuple[bool, str]:
         parts = request.participants or {}
         if not parts:
@@ -57,8 +51,8 @@ class PDDLGreen(GreenAgent):
         if "planner" not in parts and len(parts) != 1:
             return False, "include a 'planner' role or provide exactly one participant"
         cfg = request.config or {}
-        if "example" not in cfg:
-            return False, "config.example is required (name under ./examples)"
+        if "domain" not in cfg:
+            return False, "config.domain is required (name under ./examples)"
         if "index" not in cfg:
             return False, "config.index is required (problem number)"
         try:
@@ -72,38 +66,36 @@ class PDDLGreen(GreenAgent):
         role = "planner" if "planner" in request.participants else list(request.participants.keys())[0]
         purple_url = str(request.participants[role])
 
-        # Resolve domain/problem/prompt using your existing helper
-        auto = _resolve_paths(cfg_in.get("example"), int(cfg_in.get("index")))
+        auto = _resolve_paths(cfg_in.get("domain"), int(cfg_in.get("index")))
         if not auto["domain"] or not auto["problem"]:
-            raise ValueError("Could not resolve domain/problem; check config.example and config.index")
+            raise ValueError("Could not resolve domain/problem; check config.domain and config.index")
 
-        # Emit a short status update
         await updater.update_status(
             TaskState.working,
             new_agent_text_message(
-                f"Starting PDDL evaluation: example='{cfg_in.get('example')}', index={cfg_in.get('index')}\n"
+                f"Starting PDDL evaluation: domain='{cfg_in.get('domain')}', index={cfg_in.get('index')}\n"
                 f"Planner (A2A): {purple_url}"
             ),
         )
 
+        # NOTE: default val_flags now exclude '-e' to avoid plan repair segfaults.
         cfg = EvalConfig(
             domain_path=auto["domain"],
             problem_path=auto["problem"],
             out_dir=cfg_in.get("out_dir", "out"),
             val_path=cfg_in.get("val_path"),
-            val_flags=tuple(cfg_in.get("val_flags", ("-v", "-e"))),
+            val_flags=tuple(cfg_in.get("val_flags", ("-v",))),
             tolerance=float(cfg_in.get("tolerance", 0.001)),
             purple_kind="a2a",
             purple_url=purple_url,
-            prompt_path=auto["prompt"],
+            prompt_text=auto["prompt_text"],
             openai_model=None,
             check_redundancy=bool(cfg_in.get("check_redundancy", False)),
+            optimal_cost=auto.get("optimal_cost"),
         )
 
-        # Run your existing evaluator (synchronous)
         record = evaluate_once(cfg)
 
-        # Provide a readable update and a JSON artifact
         await updater.update_status(
             TaskState.working,
             new_agent_text_message(
@@ -117,14 +109,10 @@ class PDDLGreen(GreenAgent):
         )
 
         await updater.add_artifact(
-            parts=[
-                Part(TextPart(text=json.dumps(record, indent=2))),
-            ],
+            parts=[Part(TextPart(text=json.dumps(record, indent=2)))],
             name="pddl_evaluation_result",
         )
 
-
-# ---- Executor wiring (thin shim copied from tutorial pattern) ----------------
 
 class GreenExecutor(AgentExecutor):
     def __init__(self, agent: GreenAgent):
@@ -172,7 +160,7 @@ def _agent_card(card_url: str) -> AgentCard:
         tags=["planning", "pddl", "validation"],
         examples=[json.dumps({
             "participants": {"planner": "http://127.0.0.1:9020/"},
-            "config": {"example": "blocks", "index": 1, "check_redundancy": True}
+            "config": {"domain": "blocks", "index": 1, "check_redundancy": True}
         }, indent=2)],
     )
     return AgentCard(
@@ -197,8 +185,10 @@ def main():
     agent = PDDLGreen()
     executor = GreenExecutor(agent)
     handler = DefaultRequestHandler(agent_executor=executor, task_store=InMemoryTaskStore())
-    app = A2AStarletteApplication(agent_card=_agent_card(args.card_url or f"http://{args.host}:{args.port}/"),
-                                  http_handler=handler).build()
+    app = A2AStarletteApplication(
+        agent_card=_agent_card(args.card_url or f"http://{args.host}:{args.port}/"),
+        http_handler=handler
+    ).build()
 
     uvicorn.run(app, host=args.host, port=args.port)
 

@@ -1,10 +1,10 @@
 # green_agent/val_wrapper.py
 from __future__ import annotations
-import os, shutil, subprocess, tempfile, re
+import os, shutil, subprocess, tempfile, re, time
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple, Dict
 
-def _guess_val_binary(explicit: Optional[str]) -> Optional[str]:
+def guess_val_binary(explicit: Optional[str]) -> Optional[str]:
     if explicit and os.path.exists(explicit):
         return explicit
     for name in ("Validate", "validate", "Validate.exe", "validate.exe"):
@@ -54,11 +54,14 @@ class ValResult:
     stderr: str
     value: Optional[float] = None
     unsatisfied: List[Unsat] = field(default_factory=list)
-    failure_reason: Optional[str] = None  # "goal_not_satisfied" | "precondition_unsatisfied" | "unknown_failure"
+    failure_reason: Optional[str] = None  # "goal_not_satisfied" | "precondition_unsatisfied" | "unknown_failure" | "no_output"
     plan_size: Optional[int] = None
     plan_actions: Dict[int, str] = field(default_factory=dict)  # index -> "(action ...)"
     steps: List[TraceStep] = field(default_factory=list)         # per happening
     last_executed_step: Optional[int] = None
+    # NEW: retry diagnostics
+    attempts: int = 1
+    warning: Optional[str] = None
 
 def _parse_plan_listing(lines: List[str]) -> Dict[int, str]:
     """Parse the 'Plan to validate' listing into {index: action}."""
@@ -80,6 +83,18 @@ def _parse_plan_listing(lines: List[str]) -> Dict[int, str]:
         i += 1
     return plan
 
+def _has_verdict(out: str) -> bool:
+    """Heuristic: did VAL produce enough output to decide success/failure?"""
+    if not (out or "").strip():
+        return False
+    return bool(
+        _SUCCESS_RE.search(out)
+        or _FAILED_RE.search(out)
+        or _GOAL_NOT_SAT_RE.search(out)
+        or _UNSAT_RE.search(out)
+        or _UNSAT_LINE_RE.search(out)
+        or _TIME_RE.search(out)
+    )
 
 def run_val(
     domain: str,
@@ -87,21 +102,44 @@ def run_val(
     plan_text: str,
     *,
     val_path: Optional[str] = None,
-    flags: Tuple[str, ...] = ("-v","-e")
+    flags: Tuple[str, ...] = ("-v","-e"),
+    retries: int = 5,                 # NEW: up to 5 attempts
+    retry_backoff: float = 0.4,       # seconds, linear backoff per attempt
 ) -> ValResult:
-    bin_path = _guess_val_binary(val_path)
-    print(f"bin_path: {bin_path}")
+    """
+    Invoke VAL. If it appears to produce no output or no recognizable verdict,
+    retry up to `retries` times with a short backoff. Returns the best/last parse.
+    """
+    bin_path = guess_val_binary(val_path)
     if not bin_path:
         raise RuntimeError("VAL binary not found. Install or set VAL_PATH.")
 
     with tempfile.NamedTemporaryFile("w", suffix=".plan", delete=False) as tf:
         tf.write(plan_text); tf.flush(); plan_path = tf.name
 
-    try:
-        cmd = [bin_path, *flags, domain, problem, plan_path]
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        out, err = proc.stdout, proc.stderr
+    out = ""
+    err = ""
+    attempts = 0
+    warning: Optional[str] = None
 
+    try:
+        while True:
+            attempts += 1
+            cmd = [bin_path, *flags, domain, problem, plan_path]
+            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            out, err = proc.stdout, proc.stderr
+
+            if _has_verdict(out) or attempts >= max(1, retries):
+                if not _has_verdict(out):
+                    warning = f"VAL produced no recognizable output after {attempts} attempt(s)."
+                    print(f"Warning: {warning}")
+                    print(f"Error: STDERR:\n{err}")
+                break
+
+            # brief backoff before retry
+            time.sleep(retry_backoff * attempts)
+
+        # ---- parse result (same as before) ----
         ok = bool(_SUCCESS_RE.search(out)) and not _FAILED_RE.search(out)
 
         # numeric value (if any)
@@ -186,7 +224,9 @@ def run_val(
         # failure reason
         failure_reason: Optional[str] = None
         if not ok:
-            if unsatisfied:
+            if not _has_verdict(out):
+                failure_reason = "no_output"
+            elif unsatisfied:
                 failure_reason = "precondition_unsatisfied"
             elif _GOAL_NOT_SAT_RE.search(out):
                 failure_reason = "goal_not_satisfied"
@@ -204,6 +244,8 @@ def run_val(
             plan_actions=plan_actions,
             steps=steps,
             last_executed_step=last_executed_step,
+            attempts=attempts,
+            warning=warning,
         )
 
     finally:

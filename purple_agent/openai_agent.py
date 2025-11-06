@@ -4,69 +4,61 @@ from typing import Optional
 from purple_agent.base import PurpleAgent
 
 def _extract_text_from_responses(resp) -> str:
-    # 1) The official property on Responses API objects
+    # (unchanged extractor)
     txt = getattr(resp, "output_text", None)
     if txt:
         return txt
-
-    # 2) Fallback: walk the 'output' array (SDK 2.x)
     try:
         d = resp.to_dict() if hasattr(resp, "to_dict") else resp.__dict__
     except Exception:
         d = getattr(resp, "__dict__", {}) or {}
-
     out_chunks = []
     for item in d.get("output", []):
-        # Each item has 'content' — look for type=='output_text'
         for c in item.get("content", []):
-            t = c.get("type")
-            if t == "output_text":
-                text_obj = c.get("text")
-                if isinstance(text_obj, dict):
-                    val = text_obj.get("value")
-                    if val:
-                        out_chunks.append(val)
-                elif isinstance(text_obj, str):
-                    out_chunks.append(text_obj)
+            if c.get("type") == "output_text":
+                t = c.get("text")
+                if isinstance(t, dict) and t.get("value"):
+                    out_chunks.append(t["value"])
+                elif isinstance(t, str):
+                    out_chunks.append(t)
     if out_chunks:
         return "".join(out_chunks)
-
-    # 3) Last resort: Chat Completions-like shape (choices[0].message.content)
     if "choices" in d and d["choices"]:
         msg = d["choices"][0].get("message", {})
         if isinstance(msg, dict):
             c = msg.get("content")
             if isinstance(c, str) and c.strip():
                 return c
-
-    return ""  # nothing found
+    return ""
 
 
 class OpenAIPurpleAgent(PurpleAgent):
-    def __init__(self, model: Optional[str] = None, temperature: float = 0.0) -> None:
+    def __init__(self, model: Optional[str] = None, temperature: float = 0.0,
+                 base_url: Optional[str] = None, api_key: Optional[str] = None) -> None:
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.temperature = float(temperature)
 
-        # Prefer the modern Responses API (OpenAI SDK 2.x)
-        from openai import OpenAI  # type: ignore
-        self._client = OpenAI()
-        
-    def _responses_create(self, prompt: str) -> str:
-        # Official pattern: pass a simple string via 'input', then read 'output_text'
-        # https://platform.openai.com/docs/guides/text  and  https://platform.openai.com/docs/api-reference/responses
-        base = {"model": self.model, "input": prompt}
+        # Prefer OPENAI_BASE_URL/OPENAI_API_KEY envs if not provided
+        base_url = base_url or os.getenv("OPENAI_BASE_URL")
+        api_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_TOKEN")
 
+        from openai import OpenAI  # type: ignore
+        kwargs = {}
+        if base_url:
+            kwargs["base_url"] = base_url
+        if api_key:
+            kwargs["api_key"] = api_key
+        self._client = OpenAI(**kwargs)
+
+    def _responses_create(self, prompt: str) -> str:
+        base = {"model": self.model, "input": prompt}
         try:
-            # First try WITH temperature (some models accept it)…
             resp = self._client.responses.create(**{**base, "temperature": self.temperature})
         except Exception as e:
-            # If the model rejects 'temperature', retry WITHOUT it
-            msg = str(e)
-            if "Unsupported parameter" in msg and "temperature" in msg:
+            if "Unsupported parameter" in str(e) and "temperature" in str(e):
                 resp = self._client.responses.create(**base)
             else:
                 raise
-
         return _extract_text_from_responses(resp)
 
     def generate_plan(self, *, problem_nl: str) -> str:

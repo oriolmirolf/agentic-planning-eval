@@ -45,6 +45,10 @@ class PlanMetrics:
     # optional trace
     steps: List[TraceStep]
 
+    # NEW: VAL retry diagnostics
+    val_attempts: int
+    val_warning: Optional[str]
+
     def as_dict(self) -> Dict[str, Any]:
         return {
             "valid": self.valid,
@@ -59,6 +63,8 @@ class PlanMetrics:
             "first_failure_detail": self.first_failure_detail,
             "advice_count": self.advice_count,
             "advice_top_predicates": self.advice_top_predicates,
+            "val_attempts": self.val_attempts,
+            "val_warning": self.val_warning,
         }
 
 def _parse_advice_by_time(stdout: str) -> Dict[int, List[Tuple[str, bool]]]:
@@ -106,7 +112,7 @@ def compute_metrics(
     problem: str,
     plan_text: str,
     val_path: Optional[str] = None,
-    flags: Tuple[str, ...] = ("-v","-e"),
+    flags: Tuple[str, ...] = ("-v"),
     check_redundancy: bool = False,
 ) -> PlanMetrics:
     base = run_val(domain, problem, plan_text, val_path=val_path, flags=flags)
@@ -137,7 +143,6 @@ def compute_metrics(
             res = run_val(domain, problem, variant, val_path=val_path, flags=flags)
             if res.ok:
                 redundant.append(k + 1)  # 1-based among ACTIONS
-
 
     # Advice parsing
     advice_by_time = _parse_advice_by_time(base.stdout or "")
@@ -199,4 +204,6 @@ def compute_metrics(
         val_stdout=base.stdout,
         val_stderr=base.stderr,
         steps=base.steps,
+        val_attempts=base.attempts,
+        val_warning=base.warning,
     )

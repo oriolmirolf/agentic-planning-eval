@@ -1,1 +1,9 @@
-- [ ] make sure it is easy to run 
+- [ ] Make sure A2A is good
+- [ ] Create PDDL problems
+  - [x] 10x Blocksworld
+  - [ ] 10x 2
+  - [ ] 10x 3
+  - [ ] 10x 4
+  - [ ] 10x 5
+- [ ] Correctly compute optimal costs Blocksworld
+- [ ] Schematic representation of problems?
