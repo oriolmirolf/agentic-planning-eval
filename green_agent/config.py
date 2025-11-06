@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 
 
 @dataclass
@@ -37,3 +37,7 @@ class EvalConfig:
 
     # Printing control
     print_card: bool = True
+    
+    # Strategy-based purple orchestration
+    strategy_name: Optional[str] = None              # e.g., "cot_sc", "react", "tot", "debate", "verifier", "ensemble"
+    strategy_params: Optional[Dict[str, Any]] = None # {"roles": {role: {provider, model, base_url, api_key, ...}}, "settings": {...}}

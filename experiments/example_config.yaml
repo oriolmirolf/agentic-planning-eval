@@ -1,0 +1,75 @@
+# Which concrete models to try (API and/or local)
+models:
+  # --- OpenAI hosted (Responses API) ---
+  - id: gpt4o-mini
+    provider: openai
+    model: gpt-4o-mini
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.2
+
+  - id: gpt5
+    provider: openai
+    model: gpt-5
+    api_key_env: OPENAI_API_KEY
+    temperature: 0.2
+
+  # --- Local vLLM tunnel (OpenAI-compatible) ---
+  - id: qwen7b_local
+    provider: openai_compat
+    model: Qwen2.5-7B-Instruct
+    base_url: http://localhost:5678/v1
+    api_key: dummy
+    temperature: 0.6
+
+  # --- Anthropic (Claude) ---
+  - id: claude-sonnet
+    provider: anthropic
+    model: claude-sonnet-4-5-20250929   # example; set to your available ID
+    api_key_env: ANTHROPIC_API_KEY
+    temperature: 0.2
+
+  # --- Google Gemini ---
+  - id: gemini25-pro
+    provider: google
+    model: gemini-2.5-pro
+    api_key_env: GEMINI_API_KEY
+    temperature: 0.2
+
+# Techniques to run. Each technique declares which roles it needs.
+# Roles map to model IDs from the 'models' section.
+techniques:
+  - name: base
+    roles: { planner: gpt4o-mini }
+    settings: {}
+
+  - name: cot
+    roles: { planner: gpt4o-mini }
+    settings: {}
+
+  - name: cot_sc
+    roles: { planner: qwen7b_local, judge: claude-sonnet }
+    settings: { samples: 8, temperature: 0.8 }
+
+  - name: ltm
+    roles: { planner: gpt5 }
+    settings: {}
+
+  - name: react
+    roles: { controller: gpt5 }
+    settings: { max_steps: 18 }
+
+  - name: tot
+    roles: { planner: qwen7b_local, judge: gpt4o-mini }
+    settings: { depth: 4, branch: 3, beam: 3 }
+
+  - name: debate
+    roles: { proponent_a: gpt4o-mini, proponent_b: qwen7b_local, judge: claude-sonnet }
+    settings: {}
+
+  - name: verifier
+    roles: { planner: qwen7b_local, verifier: gpt4o-mini }
+    settings: {}
+
+  - name: ensemble
+    roles: { planner: qwen7b_local, synth: gpt4o-mini, judge: claude-sonnet }
+    settings: { n: 6, temp: 0.9 }

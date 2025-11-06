@@ -128,7 +128,9 @@ def evaluate_domain_cmd(
     llm_base_url: Optional[str] = typer.Option(None, help="OpenAI-compatible base URL (e.g., http://localhost:8000/v1)"),
     llm_api_key: Optional[str] = typer.Option(None, help="API key for base URL"),
     check_redundancy: bool = typer.Option(False, help="Check redundant actions (slow)"),
-    advice: bool = typer.Option(False, help="Enable VAL plan repair advice (-e)"),
+    advice: bool = typer.Option(False, help="Enable VAL plan repair advice (-e). Avoid for stability."),
+    strategy_name: Optional[str] = typer.Option(None, help="Run composite strategy (base|cot|cot_sc|ltm|react|tot|debate|verifier|ensemble) via purple 'strategy' kind"),
+    strategy_file: Optional[str] = typer.Option(None, help="YAML/JSON with 'roles' and 'settings' for the chosen strategy"),
     show_cards: bool = typer.Option(False, help="Print per-problem cards during batch"),
     llm_workers: int = typer.Option(4, help="Parallel threads for LLM calls"),
     val_workers: int = typer.Option(1, help="Parallel threads for VAL (1 = sequential)"),
@@ -137,12 +139,20 @@ def evaluate_domain_cmd(
     if not auto["domain"]:
         raise typer.BadParameter("Could not resolve domain.pddl. Check --domain.")
 
+    # load strategy params if provided
+    sparams = None
+    if strategy_file:
+        import yaml, pathlib
+        p = pathlib.Path(strategy_file)
+        sparams = json.loads(p.read_text()) if p.suffix.lower() in (".json",) else yaml.safe_load(p.read_text())
+
+    
     cfg_base = EvalConfig(
         domain_path=auto["domain"],
         problem_path="",
         out_dir=out,
         val_path=val_path,
-        purple_kind=purple,
+        purple_kind=("strategy" if strategy_name else purple),
         purple_url=purple_url,
         prompt_text=None,
         openai_model=model,
@@ -151,6 +161,8 @@ def evaluate_domain_cmd(
         check_redundancy=check_redundancy,
         val_flags=_val_flags(advice),
         print_card=False,
+        strategy_name=strategy_name,
+        strategy_params=sparams,
     )
 
     agg = evaluate_domain(

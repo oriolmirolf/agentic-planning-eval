@@ -10,6 +10,6 @@ pydantic
 google.adk
 cffi
 agentbeats
-langchain
-
-langchain-openai
+anthropic
+google-genai
+pyyaml

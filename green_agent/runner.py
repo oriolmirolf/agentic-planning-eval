@@ -28,7 +28,9 @@ def load_text(path: Optional[str]) -> str:
 
 
 def build_purple(kind: str, *, model: Optional[str], a2a_url: Optional[str],
-                 base_url: Optional[str] = None, api_key: Optional[str] = None):
+                 base_url: Optional[str] = None, api_key: Optional[str] = None,
+                 strategy_name: Optional[str] = None,
+                 strategy_params: Optional[dict] = None):
     if kind == "openai":
         from purple_agent.openai_agent import OpenAIPurpleAgent
         return OpenAIPurpleAgent(model=model, base_url=base_url, api_key=api_key)
@@ -37,15 +39,14 @@ def build_purple(kind: str, *, model: Optional[str], a2a_url: Optional[str],
             raise SystemExit("Missing purple_url for 'a2a' purple.")
         from purple_agent.a2a_agent import A2APurpleAgent
         return A2APurpleAgent(url=a2a_url)
-    if kind == "react":
-        from purple_agent.react_agent import ReactPurpleAgent
-        return ReactPurpleAgent(model=model, base_url=base_url, api_key=api_key)
-    if kind == "langchain-react":
-        from purple_agent.langchain_react import LangChainReactAgent
-        return LangChainReactAgent(model=model, base_url=base_url, api_key=api_key)
-    if kind in ("ltm", "least-to-most", "least_to_most"):
-        from purple_agent.least_to_most_agent import LeastToMostPurpleAgent
-        return LeastToMostPurpleAgent(model=model, base_url=base_url, api_key=api_key)
+    if kind in ("strategy", "composite"):
+        from purple_agent.strategy_agent import StrategyPurpleAgent
+        params = strategy_params or {}
+        roles = params.get("roles", {})
+        settings = params.get("settings", {})
+        if not (strategy_name and roles):
+            raise SystemExit("strategy kind requires strategy_name and strategy_params.roles")
+        return StrategyPurpleAgent(strategy_name=strategy_name, roles=roles, settings=settings)
     raise SystemExit(f"Unknown purple kind: {kind!r}")
 
 
@@ -75,7 +76,15 @@ def evaluate_once(cfg: EvalConfig) -> Dict[str, Any]:
     # Prefer inline prompt_text (new flow). Fallback to legacy prompt_path.
     problem_nl = (cfg.prompt_text or load_text(cfg.prompt_path) or "").strip()
 
-    purple = build_purple(cfg.purple_kind, model=cfg.openai_model, a2a_url=cfg.purple_url)
+    purple = build_purple(
+        cfg.purple_kind,
+        model=cfg.openai_model,
+        a2a_url=cfg.purple_url,
+        base_url=cfg.llm_base_url,
+        api_key=cfg.llm_api_key,
+        strategy_name=cfg.strategy_name,
+        strategy_params=cfg.strategy_params,
+    )
 
     t0 = time.time()
     plan_raw = purple.generate_plan(problem_nl=problem_nl)
@@ -259,12 +268,22 @@ def evaluate_domain(
             prompt_text=prompt_text,
             openai_model=cfg_base.openai_model,
             check_redundancy=False,          # redundancy is a VAL concern; skip here
+            llm_base_url=cfg_base.llm_base_url,
+            llm_api_key=cfg_base.llm_api_key,   
             optimal_cost=oc,
             print_card=False,                # quiet per-problem in batch by default
         )
 
         # Generate plan (like evaluate_once but stop before VAL)
-        purple = build_purple(cfg.purple_kind, model=cfg.openai_model, a2a_url=cfg.purple_url)
+        purple = build_purple(
+            cfg.purple_kind,
+            model=cfg.openai_model,
+            a2a_url=cfg.purple_url,
+            base_url=cfg.llm_base_url,
+            api_key=cfg.llm_api_key,
+            strategy_name=cfg.strategy_name,
+            strategy_params=cfg.strategy_params,
+        )
         t0 = time.time()
         plan_raw = purple.generate_plan(problem_nl=cfg.prompt_text or "")
         # small jitter to avoid lockstep bursts with some providers
