@@ -16,6 +16,8 @@ from .metrics import compute_metrics
 
 from purple_agent.openai_agent import OpenAIPurpleAgent
 from purple_agent.a2a_agent import A2APurpleAgent
+from purple_agent.react_dspy.react_agent import ReActDSPyPurpleAgent
+
 
 console = Console()
 
@@ -47,6 +49,13 @@ def build_purple(kind: str, *, model: Optional[str], a2a_url: Optional[str],
         if not (strategy_name and roles):
             raise SystemExit("strategy kind requires strategy_name and strategy_params.roles")
         return StrategyPurpleAgent(strategy_name=strategy_name, roles=roles, settings=settings)
+    if kind == "react_dspy":
+        return ReActDSPyPurpleAgent(
+            model=model,
+            base_url=base_url,
+            api_key=api_key,
+            temperature=0.2,
+        )
     raise SystemExit(f"Unknown purple kind: {kind!r}")
 
 

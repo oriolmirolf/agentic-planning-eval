@@ -13,3 +13,4 @@ agentbeats
 anthropic
 google-genai
 pyyaml
+dspy

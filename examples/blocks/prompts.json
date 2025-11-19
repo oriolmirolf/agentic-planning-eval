@@ -6,70 +6,80 @@
       "prompt": "Blocks: A, B, C. Initial: A, B, C are each on the table and clear; hand empty. Goal: A on B and B on C (tower top→bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
       "initial_ascii": "[A]   [B]   [C]\n----  ----  ----",
       "goal_ascii": "[A]\n[B]\n[C]\n----",
-      "optimal_cost": 4
+      "optimal_cost": 4,
+      "difficulty": "easy"
     },
     {
       "id": "p02",
       "prompt": "Blocks: A, B, C. Initial: B on A (A on table); C on table. B and C are clear; hand empty. Goal: A on C and B on A (tower top→bottom: B, A, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
       "initial_ascii": "[B]   [C]\n[A]   ----\n----",
       "goal_ascii": "[B]\n[A]\n[C]\n----",
-      "optimal_cost": 6
+      "optimal_cost": 6,
+      "difficulty": "easy"
     },
     {
       "id": "p03",
       "prompt": "Blocks: A, B, C. Initial: C on B on A (A on table). C is clear; hand empty. Goal: A on B and B on C (tower top→bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
       "initial_ascii": "[C]\n[B]\n[A]\n----",
       "goal_ascii": "[A]\n[B]\n[C]\n----",
-      "optimal_cost": 6
+      "optimal_cost": 6,
+      "difficulty": "easy"
     },
     {
       "id": "p04",
       "prompt": "Blocks: A, B, C, D. Initial: Two towers: A on B (B on table) and D on C (C on table). A and D are clear; hand empty. Goal: Single tower A on B on C on D (top→bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
       "initial_ascii": "[A]   [D]\n[B]   [C]\n----  ----",
       "goal_ascii": "[A]\n[B]\n[C]\n[D]\n----",
-      "optimal_cost": 10
+      "optimal_cost": 10,
+      "difficulty": "medium"
     },
     {
       "id": "p05",
       "prompt": "Blocks: A, B, C, D. Initial: D on C on B on A (A on table). D is clear; hand empty. Goal: A on B on C on D (top→bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
       "initial_ascii": "[D]\n[C]\n[B]\n[A]\n----",
       "goal_ascii": "[A]\n[B]\n[C]\n[D]\n----",
-      "optimal_cost": 8
+      "optimal_cost": 8,
+      "difficulty": "medium"
     },
     {
       "id": "p06",
       "prompt": "Blocks: A, B, C, D, E. Initial: A, B, C, D, E are each on the table and clear; hand empty. Goal: E on D on C on B on A (top→bottom: E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
       "initial_ascii": "[A] [B] [C] [D] [E]\n---- ---- ---- ---- ----",
       "goal_ascii": "[E]\n[D]\n[C]\n[B]\n[A]\n----",
-      "optimal_cost": 8
+      "optimal_cost": 8,
+      "difficulty": "medium"
     },
     {
       "id": "p07",
       "prompt": "Blocks: A, B, C, D, E. Initial: C on B on A (A on table) and E on D (D on table). C and E are clear; hand empty. Goal: Single tower A on B on C on D on E (top→bottom: A, B, C, D, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
       "initial_ascii": "[C]   [E]\n[B]   [D]\n[A]   ----\n----",
       "goal_ascii": "[A]\n[B]\n[C]\n[D]\n[E]\n----",
-      "optimal_cost": 10
+      "optimal_cost": 10,
+      "difficulty": "medium"
     },
     {
       "id": "p08",
       "prompt": "Blocks: A, B, C, D, E. Initial: Three stacks: B on A (A on table), D on C (C on table), and E alone on the table. B, D, E are clear; hand empty. Goal: Single tower C on D on B on A on E (top→bottom: C, D, B, A, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
       "initial_ascii": "[B]   [D]   [E]\n[A]   [C]   ----\n----  ----",
       "goal_ascii": "[C]\n[D]\n[B]\n[A]\n[E]\n----",
-      "optimal_cost": 16
+      "optimal_cost": 16,
+      "difficulty": "hard"
     },
     {
       "id": "p09",
       "prompt": "Blocks: A, B, C, D, E, F. Initial: A, B, C, D, E, F are each on the table and clear; hand empty. Goal: F on E on D on C on B on A (top→bottom: F, E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F exactly; no extra text.",
       "initial_ascii": "[A] [B] [C] [D] [E] [F]\n---- ---- ---- ---- ---- ----",
       "goal_ascii": "[F]\n[E]\n[D]\n[C]\n[B]\n[A]\n----",
-      "optimal_cost": 10
+      "optimal_cost": 10,
+      "difficulty": "hard"
     },
     {
       "id": "p10",
       "prompt": "Blocks: A, B, C, D, E, F, G. Initial: Two towers: C on B on A (A on table) and G on F on E on D (D on table). C and G are clear; hand empty. Goal: Single tower A on B on C on D on E on F on G (top→bottom: A, B, C, D, E, F, G). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F, G exactly; no extra text.",
       "initial_ascii": "[C]   [G]\n[B]   [F]\n[A]   [E]\n----  [D]\n      ----",
       "goal_ascii": "[A]\n[B]\n[C]\n[D]\n[E]\n[F]\n[G]\n----",
-      "optimal_cost": 14
+      "optimal_cost": 14,
+      "difficulty": "hard"
     }
   ]
 }
