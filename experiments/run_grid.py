@@ -1,157 +1,584 @@
-# /Oriol-TFM/experiments/run_grid_plus.py
-"""
-Run full-factorial benchmarks over (techniques × problems × trials) with a
-provider-agnostic model registry (OpenAI, local OpenAI-compat, Anthropic, Google).
-
-Usage (example):
-  export OPENAI_API_KEY=...
-  export ANTHROPIC_API_KEY=...
-  export GEMINI_API_KEY=...
-
-  # Local vLLM already tunneled at http://localhost:5678/v1 via your script
-  python -m experiments.run_grid_plus --domain blocks --start 1 --end 5 \
-    --config experiments/example_config.yaml \
-    --trials 3 --out out/mega-$(date +%Y%m%d-%H%M%S)
-
-Outputs:
-  <out>/experiments.csv   -- one row per (problem, technique, trial)
-  <out>/records.jsonl     -- full records, including artifact paths
-  per-problem folders with purple/VAL artifacts (as in evaluate_once)
-
-Notes:
-- The harness uses the Green Agent's evaluate_once/evaluate_domain path and the new 'strategy' purple kind.
-- Techniques pick specific roles/models from the config.
-"""
+# /Oriol-TFM/experiments/run_prompting_grid_parallel.py
 from __future__ import annotations
-import argparse, os, json, time, csv, re, yaml
+import argparse, importlib.util, os, sys, time, csv, json, re, threading, random
+from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from green_agent.config import EvalConfig
-from green_agent.runner import evaluate_once
+from typing import Dict, Any, Optional, List, Tuple
+
+from rich.console import Console
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+    MofNCompleteColumn,
+)
+
 from green_agent.cli import _resolve_paths
+from green_agent.plan_parser import extract_plan
+from green_agent.metrics import compute_metrics
 
-def _load_yaml(p: str) -> Dict[str, Any]:
-    with open(p, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+from purple_agent.strategy_agent import StrategyPurpleAgent
 
-def _infer_end(domain: str, start: int) -> int:
-    probs_dir = Path("examples") / domain / "problems_pddl"
-    ids = sorted([int(re.search(r"(\d+)", p.stem).group(1)) for p in probs_dir.glob("problem*.pddl")])
-    return ids[-1] if ids else start
+from .mlflow_utils import (
+    mlflow_run,
+    log_params as mlflow_log_params,
+    log_metrics as mlflow_log_metrics,
+    log_artifacts as mlflow_log_artifacts,
+    log_dataset_for_domain,
+)
+
+console = Console()
+
+# ---------- model loading ----------
+
+
+def _load_models(py_path: Path) -> Dict[str, Dict[str, Any]]:
+    spec = importlib.util.spec_from_file_location("exp_models", str(py_path))
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot import: {py_path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["exp_models"] = mod
+    spec.loader.exec_module(mod)  # type: ignore
+    MODELS = getattr(mod, "MODELS", None)
+    if not isinstance(MODELS, dict):
+        raise RuntimeError(f"{py_path} must define dict MODELS")
+    out = {}
+    for k, v in MODELS.items():
+        v = dict(v)
+        if "api_key" not in v:
+            env = v.get("api_key_env")
+            if env:
+                v["api_key"] = os.getenv(env)
+        out[k] = v
+    return out
+
+
+# ---------- job & helpers ----------
+
+
+@dataclass
+class Job:
+    domain: str
+    index: int
+    model_id: str
+    technique: str
+    domain_path: str
+    problem_path: str
+    prompt_text: str
+    optimal_cost: Optional[float]
+    planner_cfg: Dict[str, Any]
+    judge_cfg: Optional[Dict[str, Any]]
+    run_dir: Optional[Path] = None
+    plan_path: Optional[Path] = None
+    raw_path: Optional[Path] = None
+
+
+def _roles_for(job: Job) -> Dict[str, Dict[str, Any]]:
+    if job.technique == "cot_sc":
+        return {"planner": job.planner_cfg, "judge": (job.judge_cfg or job.planner_cfg)}
+    return {"planner": job.planner_cfg}
+
+
+def _providers_for(job: Job) -> List[str]:
+    provs = set()
+    provs.add(job.planner_cfg.get("provider"))
+    if job.technique == "cot_sc" and job.judge_cfg:
+        provs.add(job.judge_cfg.get("provider"))
+    return sorted(p for p in provs if p)
+
+
+def _fmt_inflight(d: Dict[str, int]) -> str:
+    return (
+        "In-flight LLM: {total} "
+        f"[OpenAI {d.get('openai', 0)} | Anthropic {d.get('anthropic', 0)} | "
+        f"Google {d.get('google', 0)} | Local {d.get('openai_compat', 0)}]"
+    ).format(**d)
+
+
+# ---------- phases ----------
+
+
+def _llm_generate(
+    job: Job,
+    batch_root: Path,
+    *,
+    semaphores: Dict[str, threading.BoundedSemaphore],
+    progress: Optional[Progress],
+    inflight: Dict[str, int],
+    lock: threading.Lock,
+    status_task: int,
+    strategy_settings: Dict[str, Any],
+) -> Job:
+    provs = _providers_for(job)
+    # Acquire provider semaphores in sorted order to avoid deadlocks
+    locks = [semaphores[p] for p in provs if p in semaphores]
+    for s in locks:
+        s.acquire()
+
+    # mark inflight counts
+    if progress is not None:
+        with lock:
+            inflight["total"] += 1
+            for p in provs:
+                inflight[p] = inflight.get(p, 0) + 1
+            progress.update(status_task, description=_fmt_inflight(inflight))
+
+    try:
+        run_dir = batch_root / f"{job.technique}-{job.model_id}-p{job.index:02d}"
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        roles = _roles_for(job)
+        agent = StrategyPurpleAgent(strategy_name=job.technique, roles=roles, settings=strategy_settings)
+
+        t0 = time.time()
+        raw_out = agent.generate_plan(problem_nl=job.prompt_text or "")
+        dt = time.time() - t0
+
+        raw_path = run_dir / "purple_raw.txt"
+        raw_path.write_text(raw_out, encoding="utf-8")
+
+        plan_txt = extract_plan(raw_out).to_val_plan_text()
+        plan_path = run_dir / "purple.plan"
+        plan_path.write_text(plan_txt, encoding="utf-8")
+
+        (run_dir / "meta.json").write_text(
+            json.dumps(
+                {
+                    "domain": job.domain,
+                    "index": job.index,
+                    "model_id": job.model_id,
+                    "technique": job.technique,
+                    "elapsed_s": dt,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        job.run_dir, job.plan_path, job.raw_path = run_dir, plan_path, raw_path
+        return job
+    finally:
+        # unmark inflight & release
+        if progress is not None:
+            with lock:
+                inflight["total"] -= 1
+                for p in provs:
+                    inflight[p] -= 1
+                progress.update(status_task, description=_fmt_inflight(inflight))
+        for s in reversed(locks):
+            s.release()
+
+
+def _val_validate(job: Job, *, val_path: Optional[str], tolerance: float = 0.001) -> Dict[str, Any]:
+    assert job.plan_path and job.run_dir
+    plan_txt = job.plan_path.read_text(encoding="utf-8")
+    flags = ("-v", "-t", str(tolerance))
+    metrics = compute_metrics(
+        domain=job.domain_path,
+        problem=job.problem_path,
+        plan_text=plan_txt,
+        val_path=val_path,
+        flags=flags,
+        check_redundancy=False,
+    )
+    val_stdout_path = job.run_dir / "val_stdout.txt"
+    val_stderr_path = job.run_dir / "val_stderr.txt"
+    val_trace_path = job.run_dir / "val_trace.json"
+
+    val_stdout_path.write_text(metrics.val_stdout or "", encoding="utf-8", errors="replace")
+    val_stderr_path.write_text(metrics.val_stderr or "", encoding="utf-8", errors="replace")
+    val_trace_path.write_text(
+        json.dumps(
+            [
+                {
+                    "time": st.time,
+                    "action": st.action,
+                    "adds": st.adds,
+                    "deletes": st.deletes,
+                    "failed": st.failed,
+                    "failure_detail": st.failure_detail,
+                }
+                for st in metrics.steps
+            ],
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    score = (
+        float(job.optimal_cost) / float(metrics.cost_value)
+        if (job.optimal_cost and metrics.cost_value and metrics.cost_value > 0)
+        else None
+    )
+    return {
+        "domain": job.domain_path,
+        "problem": job.problem_path,
+        "valid": metrics.valid,
+        "length": metrics.length,
+        "cost_value": metrics.cost_value,
+        "optimal_cost": job.optimal_cost,
+        "score": score,
+        "first_failure_at": metrics.first_failure_at,
+        "first_failed_action": metrics.first_failed_action,
+        "first_failure_reason": metrics.first_failure_reason,
+        "first_failure_detail": metrics.first_failure_detail,
+        "unsat_count": metrics.unsat_count,
+        "advice_count": metrics.advice_count,
+        "advice_top_predicates": metrics.advice_top_predicates,
+        "failure_reason": metrics.failure_reason,
+        "run_dir": str(job.run_dir),
+        "raw_plan_path": str(job.raw_path),
+        "norm_plan_path": str(job.plan_path),
+        "val_stdout_path": str(val_stdout_path),
+        "val_stderr_path": str(val_stderr_path),
+        "val_trace_path": str(val_trace_path),
+        "val_attempts": getattr(metrics, "val_attempts", 1),
+        "val_warning": getattr(metrics, "val_warning", None),
+    }
+
+
+# ---------- main ----------
+
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--domain", required=True)
     ap.add_argument("--start", type=int, default=1)
     ap.add_argument("--end", type=int, default=None)
-    ap.add_argument("--config", required=True, help="YAML with 'models:' and 'techniques:'")
-    ap.add_argument("--trials", type=int, default=1)
-    ap.add_argument("--out", default="out/exp")
+    ap.add_argument("--models-file", default="experiments/models.py")
+    ap.add_argument(
+        "--judge-model",
+        default=None,
+        help="ID from MODELS to use as CoT-SC judge; default: same as planner",
+    )
+    ap.add_argument(
+        "--techniques",
+        default="base,cot,ltm",
+        help="Comma-separated subset of {base,cot,ltm,cot_sc}. Default: base,cot,ltm (faster).",
+    )
+    ap.add_argument("--out", default="out/prompting-par")
     ap.add_argument("--val-path", default=None)
+
+    # global worker caps
+    ap.add_argument("--llm-workers", type=int, default=16, help="Total threads for LLM generation")
+    ap.add_argument("--val-workers", type=int, default=1, help="Threads for VAL (1 == safest)")
+
+    # per-provider caps (defaults favor higher local throughput)
+    ap.add_argument("--openai-par", type=int, default=8)
+    ap.add_argument("--anthropic-par", type=int, default=4)
+    ap.add_argument("--google-par", type=int, default=4)
+    ap.add_argument("--local-par", type=int, default=16)  # openai_compat
+
     args = ap.parse_args()
 
-    cfg_data = _load_yaml(args.config)
-    models = cfg_data["models"]      # list of model dicts
-    techniques = cfg_data["techniques"]  # list of technique dicts
+    # Parse techniques (speed knob: default excludes cot_sc)
+    selected_techs = tuple(t.strip() for t in args.techniques.split(",") if t.strip())
+    valid = {"base", "cot", "ltm", "cot_sc"}
+    for t in selected_techs:
+        if t not in valid:
+            raise SystemExit(f"Unknown technique '{t}'. Choose from {sorted(valid)}")
 
-    out_root = Path(args.out); out_root.mkdir(parents=True, exist_ok=True)
-    csv_path = out_root / "experiments.csv"
-    jsonl_path = out_root / "records.jsonl"
+    MODELS = _load_models(Path(args.models_file).resolve())
 
-    # CSV header
-    if not csv_path.exists():
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            w = csv.writer(f); w.writerow([
-                "ts","domain","index","technique","trial",
-                "valid","cost_value","length","unsat_count","failure_reason",
-                "score","optimal_cost","val_attempts","val_warning",
-                "planner_id","judge_id","verifier_id","synth_id","proponent_a","proponent_b",
-                "run_dir","raw_plan","norm_plan","val_stdout","val_stderr","val_trace"
-            ])
+    # problem range
+    start = int(args.start)
+    if args.end is None:
+        probs_dir = Path("examples") / args.domain / "problems_pddl"
+        ids = sorted([int(re.search(r"(\d+)", p.stem).group(1)) for p in probs_dir.glob("problem*.pddl")])
+        end = ids[-1] if ids else start
+    else:
+        end = int(args.end)
 
-    start_idx = int(args.start)
-    end_idx = args.end or _infer_end(args.domain, start_idx)
+    # batch root
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    batch_root = Path(args.out) / f"{args.domain}-{stamp}"
+    batch_root.mkdir(parents=True, exist_ok=True)
 
-    # Build a lookup for model IDs
-    ID2MODEL: Dict[str, Dict[str, Any]] = {m["id"]: m for m in models}
-
-    for idx in range(start_idx, end_idx + 1):
+    # build jobs
+    jobs: List[Job] = []
+    counts_by_tech: Dict[str, int] = {t: 0 for t in selected_techs}
+    for idx in range(start, end + 1):
         auto = _resolve_paths(args.domain, idx)
         if not auto["domain"] or not auto["problem"]:
-            print(f"[SKIP] Could not resolve paths for index {idx}")
+            console.print(f"[yellow][SKIP][/yellow] Could not resolve paths for p{idx:02d}")
             continue
+        prompt_text = (auto["prompt_text"] or "").strip()
+        for model_id, mcfg in MODELS.items():
+            for tech in selected_techs:
+                jobs.append(
+                    Job(
+                        domain=args.domain,
+                        index=idx,
+                        model_id=model_id,
+                        technique=tech,
+                        domain_path=auto["domain"],
+                        problem_path=auto["problem"],
+                        prompt_text=prompt_text,
+                        optimal_cost=auto.get("optimal_cost"),
+                        planner_cfg=mcfg,
+                        judge_cfg=(
+                            MODELS.get(args.judge_model)
+                            if (tech == "cot_sc" and args.judge_model)
+                            else None
+                        ),
+                    )
+                )
+                counts_by_tech[tech] += 1
 
-        for tech in techniques:
-            tech_name = tech["name"]
-            roles_spec = {}
-            # Fill roles from technique into strategy_params.roles
-            role_ids = tech.get("roles", {})
-            for role, model_id in role_ids.items():
-                m = ID2MODEL[model_id]
-                # Normalize provider names and resolve env keys if omitted
-                roles_spec[role] = {
-                    "provider": m["provider"],
-                    "model": m["model"],
-                    "base_url": m.get("base_url"),
-                    "api_key": m.get("api_key") or os.getenv(m.get("api_key_env",""), None),
-                    "temperature": m.get("temperature", 0.2),
-                    "max_tokens": m.get("max_tokens", 2048),
+    total_jobs = len(jobs)
+    if total_jobs == 0:
+        console.print("[red]No jobs to run.[/red]")
+        return
+
+    # SPEED KNOB: shuffle job order to avoid long head-of-line batches
+    random.shuffle(jobs)
+
+    # semaphores per provider
+    prov_caps = {
+        "openai": max(0, args.openai_par),
+        "anthropic": max(0, args.anthropic_par),
+        "google": max(0, args.google_par),
+        "openai_compat": max(0, args.local_par),
+    }
+    semaphores = {
+        p: threading.BoundedSemaphore(c if c > 0 else 9999) for p, c in prov_caps.items()
+    }
+
+    # inflight counters for status line
+    inflight = {"total": 0, "openai": 0, "anthropic": 0, "google": 0, "openai_compat": 0}
+    inflight_lock = threading.Lock()
+
+    progress_cols = [
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("• ETA "),
+        TimeRemainingColumn(),
+    ]
+
+    # Strategy settings (speed knobs for heavy techniques, harmless if unused by your strategy)
+    strategy_settings: Dict[str, Any] = {}
+    if "cot_sc" in selected_techs:
+        strategy_settings.setdefault("cot_sc", {})["samples"] = 3  # reduce self-consistency samples
+
+    console.print(
+        f"[green]Phase 1:[/green] Generating plans (LLM) with {max(1, args.llm_workers)} workers"
+    )
+    with Progress(*progress_cols, console=console) as progress:
+        # high-level tasks
+        t_queued = progress.add_task("Queued (LLM)", total=total_jobs)
+        t_llm_done = progress.add_task("Finished (LLM)", total=total_jobs)
+        # per-technique tasks
+        t_by_tech = {
+            tech: progress.add_task(f"{tech} (LLM done)", total=counts_by_tech.get(tech, 0))
+            for tech in selected_techs
+        }
+        # status line for inflight
+        t_status = progress.add_task(_fmt_inflight(inflight), total=1, completed=0)
+
+        llm_done: List[Job] = []
+        # submit all jobs to pool; update "Queued (LLM)" as we submit
+        with ThreadPoolExecutor(max_workers=max(1, args.llm_workers)) as pool:
+            future_map = {}
+            for job in jobs:
+                fut = pool.submit(
+                    _llm_generate,
+                    job,
+                    batch_root,
+                    semaphores=semaphores,
+                    progress=progress,
+                    inflight=inflight,
+                    lock=inflight_lock,
+                    status_task=t_status,
+                    strategy_settings=strategy_settings,
+                )
+                future_map[fut] = job
+                progress.update(t_queued, advance=1)
+
+            # consume results as they complete (no submission-order blocking)
+            for fut in as_completed(future_map):
+                j = fut.result()
+                llm_done.append(j)
+                progress.update(t_llm_done, advance=1)
+                progress.update(t_by_tech[j.technique], advance=1)
+
+    console.print(
+        f"[green]Phase 2:[/green] Validating plans (VAL) with {max(1, args.val_workers)} worker(s)"
+    )
+    with Progress(*progress_cols, console=console) as progress:
+        t_val_done = progress.add_task("Finished (VAL)", total=len(jobs))
+        t_val_by_tech = {
+            tech: progress.add_task(f"{tech} (VAL done)", total=counts_by_tech.get(tech, 0))
+            for tech in selected_techs
+        }
+
+        results: List[Tuple[Job, Dict[str, Any]]] = []
+        if max(1, args.val_workers) == 1:
+            for job in llm_done:
+                rec = _val_validate(job, val_path=args.val_path)
+                results.append((job, rec))
+                progress.update(t_val_done, advance=1)
+                progress.update(t_val_by_tech[j.technique], advance=1)
+        else:
+            with ThreadPoolExecutor(max_workers=max(1, args.val_workers)) as pool:
+                future_map = {
+                    pool.submit(_val_validate, job, val_path=args.val_path): job for job in llm_done
                 }
+                for fut in as_completed(future_map):
+                    job = future_map[fut]
+                    rec = fut.result()
+                    results.append((job, rec))
+                    progress.update(t_val_done, advance=1)
+                    progress.update(t_val_by_tech[j.technique], advance=1)
 
-            strat_params = {"roles": roles_spec, "settings": tech.get("settings", {})}
+    # write outputs
+    csv_path = batch_root / "experiments.csv"
+    jsonl_path = batch_root / "records.jsonl"
+    if not csv_path.exists():
+        with open(csv_path, "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(
+                [
+                    "ts",
+                    "domain",
+                    "index",
+                    "model_id",
+                    "technique",
+                    "valid",
+                    "cost_value",
+                    "length",
+                    "unsat_count",
+                    "failure_reason",
+                    "score",
+                    "optimal_cost",
+                    "val_attempts",
+                    "val_warning",
+                    "run_dir",
+                    "raw_plan",
+                    "norm_plan",
+                    "val_stdout",
+                    "val_stderr",
+                    "val_trace",
+                ]
+            )
 
-            for t in range(1, max(1, args.trials) + 1):
-                cfg = EvalConfig(
-                    domain_path=auto["domain"],
-                    problem_path=auto["problem"],
-                    out_dir=str(out_root),
-                    val_path=args.val_path,
-                    purple_kind="strategy",
-                    purple_url=None,
-                    prompt_text=auto["prompt_text"],
-                    openai_model=None,
-                    llm_base_url=None,
-                    llm_api_key=None,
-                    check_redundancy=False,
-                    optimal_cost=auto.get("optimal_cost"),
-                    val_flags=("-v",),    # no VAL repair advice during eval; we just validate
-                    print_card=False,
-                    strategy_name=tech_name,
-                    strategy_params=strat_params,
+    for job, rec in results:
+        # --- file outputs ---
+        with open(jsonl_path, "a", encoding="utf-8") as jf:
+            jf.write(
+                json.dumps(
+                    {
+                        **rec,
+                        "domain_name": job.domain,
+                        "index": job.index,
+                        "model_id": job.model_id,
+                        "technique": job.technique,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+
+        with open(csv_path, "a", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(
+                [
+                    time.strftime("%Y-%m-%d %H:%M:%S"),
+                    job.domain,
+                    job.index,
+                    job.model_id,
+                    job.technique,
+                    rec.get("valid"),
+                    rec.get("cost_value"),
+                    rec.get("length"),
+                    rec.get("unsat_count"),
+                    rec.get("failure_reason"),
+                    rec.get("score"),
+                    rec.get("optimal_cost"),
+                    rec.get("val_attempts"),
+                    rec.get("val_warning"),
+                    rec.get("run_dir"),
+                    rec.get("raw_plan_path"),
+                    rec.get("norm_plan_path"),
+                    rec.get("val_stdout_path"),
+                    rec.get("val_stderr_path"),
+                    rec.get("val_trace_path"),
+                ]
+            )
+
+        # --- MLflow logging (one run per job; no-op if MLflow is disabled) ---
+        planner_cfg = job.planner_cfg or {}
+        judge_cfg = job.judge_cfg or {}
+
+        model_name = planner_cfg.get("model") or job.model_id
+        dataset_name = job.domain
+
+        run_name = f"{dataset_name}-p{job.index:02d}-{model_name}-{job.technique}"
+
+        ml_tags = {
+            "runner": "experiments.run_prompting_grid_parallel",
+            "stage": "evaluation",
+            "technique": job.technique,
+            "dataset": dataset_name,
+            "model": model_name,
+        }
+
+        with mlflow_run(run_name=run_name, tags=ml_tags) as run:
+            if run is None:
+                continue
+
+            # Dataset = whole domain (blocks/logistics/...), logged once per run
+            log_dataset_for_domain(
+                domain=job.domain,
+                domain_path=job.domain_path,
+            )
+
+            # Extra params (pipeline config / VAL config, etc.)
+            ml_params = {
+                "domain": job.domain,
+                "problem_index": job.index,
+                "problem_path": job.problem_path,
+                "model_id": job.model_id,
+                "technique": job.technique,
+                "optimal_cost": rec.get("optimal_cost"),
+                "planner.provider": planner_cfg.get("provider"),
+                "planner.model": planner_cfg.get("model"),
+                "planner.base_url": planner_cfg.get("base_url"),
+                "judge.provider": judge_cfg.get("provider"),
+                "judge.model": judge_cfg.get("model"),
+                "judge.base_url": judge_cfg.get("base_url"),
+                "val_path": args.val_path,
+            }
+            mlflow_log_params(ml_params)
+
+            # Core metrics
+            ml_metrics = {
+                "valid": 1.0 if rec.get("valid") else 0.0,
+                "cost_value": rec.get("cost_value"),
+                "length": rec.get("length"),
+                "score": rec.get("score"),
+                "unsat_count": rec.get("unsat_count") or 0,
+                "val_attempts": rec.get("val_attempts") or 0,
+            }
+            mlflow_log_metrics(ml_metrics)
+
+            # Artifacts: full run dir (plans + VAL logs / trace)
+            if job.run_dir:
+                mlflow_log_artifacts(
+                    str(job.run_dir),
+                    artifact_path=f"{dataset_name}/p{job.index:02d}/{job.model_id}/{job.technique}",
                 )
 
-                t0 = time.time()
-                rec = evaluate_once(cfg)
-                dt = time.time() - t0
+    console.print(f"\n[bold green]OK[/bold green] • Wrote:\n- {csv_path}\n- {jsonl_path}")
+    console.print(f"[dim]Batch root: {batch_root}[/dim]")
 
-                with open(jsonl_path, "a", encoding="utf-8") as jf:
-                    jf.write(json.dumps({
-                        **rec,
-                        "domain_name": args.domain,
-                        "index": idx,
-                        "technique": tech_name,
-                        "trial": t,
-                        "elapsed_s": dt,
-                        "roles": role_ids,
-                    }, ensure_ascii=False) + "\n")
-
-                with open(csv_path, "a", newline="", encoding="utf-8") as f:
-                    w = csv.writer(f); w.writerow([
-                        time.strftime("%Y-%m-%d %H:%M:%S"),
-                        args.domain, idx, tech_name, t,
-                        rec.get("valid"), rec.get("cost_value"), rec.get("length"), rec.get("unsat_count"),
-                        rec.get("failure_reason"),
-                        rec.get("score"), rec.get("optimal_cost"), rec.get("val_attempts"), rec.get("val_warning"),
-                        role_ids.get("planner"), role_ids.get("judge"), role_ids.get("verifier"),
-                        role_ids.get("synth"), role_ids.get("proponent_a"), role_ids.get("proponent_b"),
-                        rec.get("run_dir"), rec.get("raw_plan_path"), rec.get("norm_plan_path"),
-                        rec.get("val_stdout_path"), rec.get("val_stderr_path"), rec.get("val_trace_path"),
-                    ])
-
-                print(f"[{args.domain} p{idx:02d}] {tech_name} trial {t} → valid={rec.get('valid')} "
-                      f"cost={rec.get('cost_value')} len={rec.get('length')} ({dt:.2f}s)")
-
-    print(f"\n[OK] Wrote:\n- {csv_path}\n- {jsonl_path}")
 
 if __name__ == "__main__":
     main()

@@ -3,3 +3,7 @@ __pycache__
 .env
 out/*
 green_agent/VAL_binaries/
+mlruns/
+
+FF-v2.3/*
+FF-v2.3.tgz

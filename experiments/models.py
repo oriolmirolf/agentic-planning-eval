@@ -87,8 +87,8 @@ MODELS = {
     # Qwen2.5 7B Instruct served behind your launch_and_tunnel.sh (localhost:5678/v1)
     "qwen7b-local": {
         "provider": "openai_compat",      # use OpenAI-compatible client with base_url
-        "model": "Qwen2.5-7B-Instruct",
-        "base_url": "http://localhost:5678/v1",
+        "model": "Qwen2.5-72B-Instruct",
+        "base_url": "http://localhost:5679/v1",
         "api_key": "dummy",
         "temperature": 0.2,
     },
