@@ -7,6 +7,9 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "local_llm: mark test as requiring a local LLM server running."
     )
+    config.addinivalue_line(
+        "markers", "integration: tests that require external binaries (VAL, FF)."
+    )
 
 
 @pytest.fixture

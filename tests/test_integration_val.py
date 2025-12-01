@@ -8,11 +8,10 @@ from dotenv import load_dotenv
 
 from green_agent.val_wrapper import run_val
 
-# 1. Load .env
+pytestmark = pytest.mark.integration
+
 load_dotenv()
 
-
-# 2. Resolve binary
 def resolve_val_binary():
     env_path = os.getenv("VAL_PATH")
     if env_path and os.path.exists(env_path):
