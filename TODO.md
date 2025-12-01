@@ -7,3 +7,4 @@
   - [ ] 10x 5
 - [ ] Correctly compute optimal costs Blocksworld
 - [ ] Schematic representation of problems?
+- [ ] Should I include 1-3 unsolvable by domain? How to evaluate it? 
