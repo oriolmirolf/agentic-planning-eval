@@ -1,55 +1,56 @@
 # green_agent/metrics.py
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import List, Optional, Dict, Any, Tuple
-from collections import Counter
+
 import re
-from .val_wrapper import run_val, TraceStep
+from collections import Counter
+from dataclasses import dataclass
+from typing import Any
+
+from .val_wrapper import TraceStep, run_val
 
 # Header lines in "Plan Repair Advice":
 # "(move-small ...) has an unsatisfied precondition at time 2"
 _ADVICE_HDR_RE = re.compile(
-    r"\(([^)]+)\)\s+has an unsatisfied precondition at time\s+(\d+)",
-    re.IGNORECASE
+    r"\(([^)]+)\)\s+has an unsatisfied precondition at time\s+(\d+)", re.IGNORECASE
 )
 
 # Advice lines:
 # "Set (isoccupied loc3_6) to false"  OR  "Set (adjacent …) to true"
 #  -> capture atom + desired truth value
-_ADVICE_SET_RE = re.compile(
-    r"Set\s*\(([^)]+)\)\s*to\s*(true|false)",
-    re.IGNORECASE
-)
+_ADVICE_SET_RE = re.compile(r"Set\s*\(([^)]+)\)\s*to\s*(true|false)", re.IGNORECASE)
+
 
 @dataclass(slots=True)
 class PlanMetrics:
     valid: bool
     length: int
-    cost_value: Optional[float]
-    first_failure_at: Optional[int]
+    cost_value: float | None
+    first_failure_at: int | None
     unsat_count: int
-    redundant_indices: Optional[List[int]]
-    failure_reason: Optional[str]
+    redundant_indices: list[int] | None
+    failure_reason: str | None
 
-    first_failed_action: Optional[str]
-    first_failure_reason: Optional[str]     # short atom-only summary (e.g., "isoccupied loc3_6")
-    first_failure_detail: Optional[str]     # human-readable full sentence
+    first_failed_action: str | None
+    first_failure_reason: (
+        str | None
+    )  # short atom-only summary (e.g., "isoccupied loc3_6")
+    first_failure_detail: str | None  # human-readable full sentence
 
     # Advice-derived signal
     advice_count: int
-    advice_top_predicates: List[Tuple[str, int]]
+    advice_top_predicates: list[tuple[str, int]]
 
     # raw logs
     val_stdout: str
     val_stderr: str
     # optional trace
-    steps: List[TraceStep]
+    steps: list[TraceStep]
 
     # NEW: VAL retry diagnostics
     val_attempts: int
-    val_warning: Optional[str]
+    val_warning: str | None
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "valid": self.valid,
             "length": self.length,
@@ -67,13 +68,14 @@ class PlanMetrics:
             "val_warning": self.val_warning,
         }
 
-def _parse_advice_by_time(stdout: str) -> Dict[int, List[Tuple[str, bool]]]:
+
+def _parse_advice_by_time(stdout: str) -> dict[int, list[tuple[str, bool]]]:
     """
     Parse VAL's 'Plan Repair Advice' into: time -> list of (atom, desired_value)
     desired_value is True if advice says 'to true', else False.
     """
     lines = (stdout or "").splitlines()
-    advice: Dict[int, List[Tuple[str, bool]]] = {}
+    advice: dict[int, list[tuple[str, bool]]] = {}
 
     i = 0
     n = len(lines)
@@ -89,13 +91,13 @@ def _parse_advice_by_time(stdout: str) -> Dict[int, List[Tuple[str, bool]]]:
             t = None
 
         j = i + 1
-        pairs: List[Tuple[str, bool]] = []
+        pairs: list[tuple[str, bool]] = []
         while j < n and not _ADVICE_HDR_RE.search(lines[j]):
             mset = _ADVICE_SET_RE.search(lines[j])
             if mset:
                 atom = mset.group(1).strip()
                 desired_raw = mset.group(2).strip().lower()
-                desired = (desired_raw == "true")
+                desired = desired_raw == "true"
                 pairs.append((atom, desired))
             j += 1
 
@@ -106,13 +108,14 @@ def _parse_advice_by_time(stdout: str) -> Dict[int, List[Tuple[str, bool]]]:
 
     return advice
 
+
 def compute_metrics(
     *,
     domain: str,
     problem: str,
     plan_text: str,
-    val_path: Optional[str] = None,
-    flags: Tuple[str, ...] = ("-v"),
+    val_path: str | None = None,
+    flags: tuple[str, ...] = ("-v"),
     check_redundancy: bool = False,
 ) -> PlanMetrics:
     base = run_val(domain, problem, plan_text, val_path=val_path, flags=flags)
@@ -134,12 +137,14 @@ def compute_metrics(
         redundant = []
         lines = [ln for ln in plan_text.splitlines() if ln.strip()]
         # consider only action lines; map from action index -> original line index
-        action_line_idxs = [idx for idx, ln in enumerate(lines) if ln.strip().startswith("(")]
+        action_line_idxs = [
+            idx for idx, ln in enumerate(lines) if ln.strip().startswith("(")
+        ]
         for k, remove_idx in enumerate(action_line_idxs):
             # build variant skipping exactly this action line
-            variant = "\n".join(
-                lines[j] for j in range(len(lines)) if j != remove_idx
-            ) + "\n"
+            variant = (
+                "\n".join(lines[j] for j in range(len(lines)) if j != remove_idx) + "\n"
+            )
             res = run_val(domain, problem, variant, val_path=val_path, flags=flags)
             if res.ok:
                 redundant.append(k + 1)  # 1-based among ACTIONS
@@ -148,10 +153,18 @@ def compute_metrics(
     advice_by_time = _parse_advice_by_time(base.stdout or "")
 
     # Flatten for counts/top predicates (use just the atom names)
-    all_advice_atoms = [atom for pairs in advice_by_time.values() for (atom, _desired) in pairs]
+    all_advice_atoms = [
+        atom for pairs in advice_by_time.values() for (atom, _desired) in pairs
+    ]
     advice_count = len(all_advice_atoms)
     pred_counts = Counter(
-        (a.strip()[1:-1] if a.strip().startswith("(") and a.strip().endswith(")") else a).split()[0].lower()
+        (
+            a.strip()[1:-1]
+            if a.strip().startswith("(") and a.strip().endswith(")")
+            else a
+        )
+        .split()[0]
+        .lower()
         for a in all_advice_atoms
         if isinstance(a, str) and a.strip()
     )
@@ -162,30 +175,20 @@ def compute_metrics(
     first_failure_detail = None
     if first_fail is not None and advice_by_time.get(first_fail):
         # short reason: first atom only
-        first_atom, first_desired = advice_by_time[first_fail][0]
+        first_atom, _ = advice_by_time[first_fail][0]
         first_failure_reason = first_atom
 
-        # Build human-readable detail. We *infer* current value as the opposite of desired.
+        # Build human-readable detail. We infer current value as the opp. of desired.
         # (If VAL says "Set X to false", we assume X was true.)
-        def _fmt_pair(pair: Tuple[str, bool]) -> str:
+        def _fmt_pair(pair: tuple[str, bool]) -> str:
             atom, desired = pair
             desired_str = "true" if desired else "false"
             assumed_was = "false" if desired else "true"
             return f"{atom} = {desired_str} (but was {assumed_was})"
 
-        pairs = advice_by_time[first_fail]
-        if len(pairs) == 1:
-            # Single predicate missing
-            detail_bits = _fmt_pair(pairs[0])
-        else:
-            # Summarize first two, then "+N more"
-            shown = ", ".join(_fmt_pair(p) for p in pairs[:2])
-            more = len(pairs) - 2
-            detail_bits = f"{shown}" + (f", +{more} more" if more > 0 else "")
-
-        action_txt = first_failed_action or "unknown action"
         first_failure_detail = (
-            f"Unsatisfied preconditions at step {first_fail} for {action_txt}: {detail_bits}."
+            f"Unsatisfied preconditions at step {first_fail} "
+            "for {action_txt}: {detail_bits}."
         )
 
     return PlanMetrics(

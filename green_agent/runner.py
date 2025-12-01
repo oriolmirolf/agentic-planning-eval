@@ -1,54 +1,76 @@
 # green_agent/runner.py
 from __future__ import annotations
-import os, time, json, csv, random
-from typing import Optional, Dict, Any, Tuple, List, DefaultDict
-from pathlib import Path
+
+import csv
+import json
+import os
+import random
+import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any
 
 from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 from rich.table import Table
-from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn, MofNCompleteColumn
 
-from .config import EvalConfig
-from .plan_parser import extract_plan
-from .metrics import compute_metrics
-
-from purple_agent.openai_agent import OpenAIPurpleAgent
-from purple_agent.a2a_agent import A2APurpleAgent
 from purple_agent.react_dspy.react_agent import ReActDSPyPurpleAgent
 
+from .config import EvalConfig
+from .metrics import compute_metrics
+from .plan_parser import extract_plan
 
 console = Console()
 
 
-def load_text(path: Optional[str]) -> str:
+def load_text(path: str | None) -> str:
     if not path:
         return ""
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return f.read().strip()
 
 
-def build_purple(kind: str, *, model: Optional[str], a2a_url: Optional[str],
-                 base_url: Optional[str] = None, api_key: Optional[str] = None,
-                 strategy_name: Optional[str] = None,
-                 strategy_params: Optional[dict] = None):
+def build_purple(
+    kind: str,
+    *,
+    model: str | None,
+    a2a_url: str | None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    strategy_name: str | None = None,
+    strategy_params: dict | None = None,
+):
     if kind == "openai":
         from purple_agent.openai_agent import OpenAIPurpleAgent
+
         return OpenAIPurpleAgent(model=model, base_url=base_url, api_key=api_key)
     if kind == "a2a":
         if not a2a_url:
             raise SystemExit("Missing purple_url for 'a2a' purple.")
         from purple_agent.a2a_agent import A2APurpleAgent
+
         return A2APurpleAgent(url=a2a_url)
     if kind in ("strategy", "composite"):
         from purple_agent.strategy_agent import StrategyPurpleAgent
+
         params = strategy_params or {}
         roles = params.get("roles", {})
         settings = params.get("settings", {})
         if not (strategy_name and roles):
-            raise SystemExit("strategy kind requires strategy_name and strategy_params.roles")
-        return StrategyPurpleAgent(strategy_name=strategy_name, roles=roles, settings=settings)
+            raise SystemExit(
+                "strategy kind requires strategy_name and strategy_params.roles"
+            )
+        return StrategyPurpleAgent(
+            strategy_name=strategy_name, roles=roles, settings=settings
+        )
     if kind == "react_dspy":
         return ReActDSPyPurpleAgent(
             model=model,
@@ -67,7 +89,7 @@ def _make_run_dir(base_out: str, domain_path: str) -> str:
     return str(run_dir)
 
 
-def _score_from(metrics, optimal_cost: Optional[float]) -> Optional[float]:
+def _score_from(metrics, optimal_cost: float | None) -> float | None:
     if not metrics.valid:
         return 0.0
     oc = optimal_cost
@@ -77,8 +99,9 @@ def _score_from(metrics, optimal_cost: Optional[float]) -> Optional[float]:
     return None
 
 
-def evaluate_once(cfg: EvalConfig) -> Dict[str, Any]:
-    # Respect explicit run_dir (used by whole-domain batch); otherwise create a new stamped folder.
+def evaluate_once(cfg: EvalConfig) -> dict[str, Any]:
+    # Respect explicit run_dir (used by whole-domain batch);
+    # otherwise create a new stamped folder.
     run_dir = cfg.run_dir or _make_run_dir(cfg.out_dir, cfg.domain_path)
     Path(run_dir).mkdir(parents=True, exist_ok=True)
 
@@ -149,7 +172,8 @@ def evaluate_once(cfg: EvalConfig) -> Dict[str, Any]:
     # Rich table (conditionally printed)
     if cfg.print_card:
         table = Table(title="Green Agent — Plan Evaluation")
-        table.add_column("Metric"); table.add_column("Value")
+        table.add_column("Metric")
+        table.add_column("Value")
         table.add_row("Valid", str(metrics.valid))
         if not metrics.valid:
             table.add_row("Reason", metrics.failure_reason or "unknown")
@@ -161,13 +185,18 @@ def evaluate_once(cfg: EvalConfig) -> Dict[str, Any]:
         table.add_row("First failure details", metrics.first_failure_detail or "—")
         table.add_row("Unsat preconds", str(metrics.unsat_count))
         if metrics.redundant_indices:
-            table.add_row("Redundant steps", ", ".join(map(str, metrics.redundant_indices)) or "—")
+            table.add_row(
+                "Redundant steps", ", ".join(map(str, metrics.redundant_indices)) or "—"
+            )
         table.add_row("Advice fixes", str(metrics.advice_count))
-        table.add_row("Advice top preds", ", ".join(f"{p}:{c}" for p, c in metrics.advice_top_predicates) or "—")
+        table.add_row(
+            "Advice top preds",
+            ", ".join(f"{p}:{c}" for p, c in metrics.advice_top_predicates) or "—",
+        )
         table.add_row("LLM Latency (s)", f"{t1 - t0:.2f}")
         table.add_row("VAL attempts", str(getattr(metrics, "val_attempts", 1)))
         if getattr(metrics, "val_warning", None):
-            table.add_row("Warning", getattr(metrics, "val_warning"))
+            table.add_row("Warning", metrics.val_warning)
         console.print(table)
 
     score = _score_from(metrics, cfg.optimal_cost)
@@ -205,16 +234,16 @@ def evaluate_once(cfg: EvalConfig) -> Dict[str, Any]:
 def evaluate_domain(
     cfg_base: EvalConfig,
     *,
-    start: Optional[int] = None,
-    end: Optional[int] = None,
+    start: int | None = None,
+    end: int | None = None,
     print_cards: bool = False,
-    llm_workers: int = 4,      # parallelize LLM calls
-    val_workers: int = 1,      # default: serialize VAL (avoid stampede)
-) -> Dict[str, Any]:
+    llm_workers: int = 4,  # parallelize LLM calls
+    val_workers: int = 1,  # default: serialize VAL (avoid stampede)
+) -> dict[str, Any]:
     """
     Two-phase pipeline:
       1) Parallel: generate plans with the LLM / purple agent (llm_workers threads).
-      2) Then validate plans (VAL). Default sequential (val_workers=1) to avoid hammering VAL.
+      2) Then validate plans (VAL). Default sequential (val_workers=1).
          You can increase val_workers if you want some parallelism here too.
 
     Layout:
@@ -228,13 +257,13 @@ def evaluate_domain(
     """
     domain_dir = Path(cfg_base.domain_path).parent
     problems_dir = domain_dir / "problems_pddl"
-    with open(domain_dir / "prompts.json", "r", encoding="utf-8") as f:
+    with open(domain_dir / "prompts.json", encoding="utf-8") as f:
         data = json.load(f)
     domain_prompt = (data.get("domain_prompt") or "").strip()
     problems = data.get("problems", [])
 
     # filter problems by range
-    items: List[dict] = []
+    items: list[dict] = []
     for item in problems:
         pid = str(item.get("id", "")).strip()
         try:
@@ -253,34 +282,38 @@ def evaluate_domain(
     batch_root.mkdir(parents=True, exist_ok=True)
 
     # ---------- Phase 1: parallel LLM plan generation ----------
-    def _gen_job(job: dict) -> Dict[str, Any]:
+    def _gen_job(job: dict) -> dict[str, Any]:
         """Generate plan for a single problem and write purple_raw.txt / purple.plan."""
-        pid = job["pid"]; idx = job["idx"]; entry = job["entry"]
+        pid = job["pid"]
+        idx = job["idx"]
+        entry = job["entry"]
         prob_dir = batch_root / pid
         prob_dir.mkdir(parents=True, exist_ok=True)
 
         problem_pddl = problems_dir / f"problem{idx}.pddl"
-        prompt_text = (domain_prompt + "\n\n" + str(entry.get("prompt", "")).strip()).strip()
+        prompt_text = (
+            domain_prompt + "\n\n" + str(entry.get("prompt", "")).strip()
+        ).strip()
         oc = entry.get("optimal_cost")
 
         # Build a per-problem config just for the purple generation (no VAL yet)
         cfg = EvalConfig(
             domain_path=cfg_base.domain_path,
             problem_path=str(problem_pddl),
-            out_dir=str(batch_root),         # not used since run_dir is set
-            run_dir=str(prob_dir),           # write artifacts in pXX/
-            val_path=cfg_base.val_path,      # passed later
-            val_flags=cfg_base.val_flags,    # passed later
-            tolerance=cfg_base.tolerance,    # passed later
+            out_dir=str(batch_root),  # not used since run_dir is set
+            run_dir=str(prob_dir),  # write artifacts in pXX/
+            val_path=cfg_base.val_path,  # passed later
+            val_flags=cfg_base.val_flags,  # passed later
+            tolerance=cfg_base.tolerance,  # passed later
             purple_kind=cfg_base.purple_kind,
             purple_url=cfg_base.purple_url,
             prompt_text=prompt_text,
             openai_model=cfg_base.openai_model,
-            check_redundancy=False,          # redundancy is a VAL concern; skip here
+            check_redundancy=False,  # redundancy is a VAL concern; skip here
             llm_base_url=cfg_base.llm_base_url,
-            llm_api_key=cfg_base.llm_api_key,   
+            llm_api_key=cfg_base.llm_api_key,
             optimal_cost=oc,
-            print_card=False,                # quiet per-problem in batch by default
+            print_card=False,  # quiet per-problem in batch by default
         )
 
         # Generate plan (like evaluate_once but stop before VAL)
@@ -321,7 +354,7 @@ def evaluate_domain(
         }
 
     llm_jobs = items
-    llm_results: List[Dict[str, Any]] = []
+    llm_results: list[dict[str, Any]] = []
 
     progress_columns = [
         TextColumn("[bold blue]{task.description}"),
@@ -341,11 +374,11 @@ def evaluate_domain(
                 progress.update(t_llm, advance=1)
 
         # ---------- Phase 2: VAL validation (default sequential) ----------
-        def _val_job(r: Dict[str, Any]) -> Dict[str, Any]:
+        def _val_job(r: dict[str, Any]) -> dict[str, Any]:
             run_dir = r["run_dir"]
             plan_path = r["norm_plan_path"]
             flags = (*cfg_base.val_flags, "-t", str(cfg_base.tolerance))
-            with open(plan_path, "r", encoding="utf-8") as f:
+            with open(plan_path, encoding="utf-8") as f:
                 plan_txt = f.read()
 
             metrics = compute_metrics(
@@ -408,7 +441,7 @@ def evaluate_domain(
             }
 
         t_val = progress.add_task("Validating plans (VAL)", total=len(llm_results))
-        final_results: List[Dict[str, Any]] = []
+        final_results: list[dict[str, Any]] = []
 
         if max(1, val_workers) == 1:
             # sequential VAL
@@ -426,7 +459,14 @@ def evaluate_domain(
     results = []
     for rec in final_results:
         # Normalize paths relative to the batch root
-        for k in ("raw_plan_path", "norm_plan_path", "val_stdout_path", "val_stderr_path", "val_trace_path", "run_dir"):
+        for k in (
+            "raw_plan_path",
+            "norm_plan_path",
+            "val_stdout_path",
+            "val_stderr_path",
+            "val_trace_path",
+            "run_dir",
+        ):
             if rec.get(k):
                 try:
                     rec[k] = str(Path(rec[k]).relative_to(batch_root))
@@ -444,7 +484,7 @@ def evaluate_domain(
     # Aggregate numbers
     n = len(results)
     # New: counts by reason (including "valid")
-    counts_by_reason: DefaultDict[str, int] = defaultdict(int)
+    counts_by_reason: defaultdict[str, int] = defaultdict(int)
     for r in results:
         if r.get("valid"):
             counts_by_reason["valid"] += 1
@@ -455,7 +495,9 @@ def evaluate_domain(
     counts_by_reason = dict(sorted(counts_by_reason.items(), key=lambda kv: kv[0]))
 
     # Score aggregation (unchanged)
-    scores = [r.get("score") for r in results if isinstance(r.get("score"), (int, float))]
+    scores = [
+        r.get("score") for r in results if isinstance(r.get("score"), (int, float))
+    ]
     total_score = sum(scores) if scores else 0.0
 
     summary = {
@@ -465,7 +507,7 @@ def evaluate_domain(
         "count": n,
         "total_score": total_score,
         "scores": {r["problem_id"]: r.get("score") for r in results},
-        "counts_by_reason": counts_by_reason,      # <--- NEW primary aggregate
+        "counts_by_reason": counts_by_reason,  # <--- NEW primary aggregate
     }
 
     with open(batch_root / "domain_summary.json", "w", encoding="utf-8") as f:
@@ -475,7 +517,19 @@ def evaluate_domain(
     csv_path = batch_root / "scores.csv"
     with open(csv_path, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["problem_id", "valid", "optimal_cost", "cost_value", "score", "failure_reason", "val_attempts", "val_warning", "llm_latency_s"])
+        w.writerow(
+            [
+                "problem_id",
+                "valid",
+                "optimal_cost",
+                "cost_value",
+                "score",
+                "failure_reason",
+                "val_attempts",
+                "val_warning",
+                "llm_latency_s",
+            ]
+        )
         for r in results:
             w.writerow(
                 [
@@ -493,7 +547,8 @@ def evaluate_domain(
 
     # Console summary: show counts_by_reason instead of valid/invalid
     table = Table(title=f"Domain Summary — {domain_dir.name}")
-    table.add_column("Metric"); table.add_column("Value")
+    table.add_column("Metric")
+    table.add_column("Value")
     table.add_row("Problems", str(n))
     table.add_row("Total Score", f"{total_score:.4f}")
     console.print(table)

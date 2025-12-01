@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import os.path
 from contextlib import contextmanager
-from typing import Any, Dict, Optional
+from typing import Any
 
 import mlflow  # type: ignore
 
@@ -49,8 +49,8 @@ def _ensure_setup() -> None:
 
 @contextmanager
 def mlflow_run(
-    run_name: Optional[str] = None,
-    tags: Optional[Dict[str, str]] = None,
+    run_name: str | None = None,
+    tags: dict[str, str] | None = None,
 ):
     """
     Context manager that starts an MLflow run if MLflow is available.
@@ -74,11 +74,11 @@ def mlflow_run(
         yield run
 
 
-def log_params(params: Dict[str, Any]) -> None:
+def log_params(params: dict[str, Any]) -> None:
     """Log params, coercing everything into MLflow-friendly types."""
     if not _enabled():
         return
-    flat: Dict[str, Any] = {}
+    flat: dict[str, Any] = {}
     for k, v in params.items():
         if v is None:
             continue
@@ -90,11 +90,11 @@ def log_params(params: Dict[str, Any]) -> None:
         mlflow.log_params(flat)
 
 
-def log_metrics(metrics: Dict[str, Any]) -> None:
+def log_metrics(metrics: dict[str, Any]) -> None:
     """Log metrics (floats); None values are ignored."""
     if not _enabled():
         return
-    clean: Dict[str, float] = {}
+    clean: dict[str, float] = {}
     for k, v in metrics.items():
         if v is None:
             continue
@@ -106,7 +106,7 @@ def log_metrics(metrics: Dict[str, Any]) -> None:
         mlflow.log_metrics(clean)
 
 
-def log_artifacts(path: str, artifact_path: Optional[str] = None) -> None:
+def log_artifacts(path: str, artifact_path: str | None = None) -> None:
     """
     Log a directory (log_artifacts) or a single file (log_artifact) under
     optional artifact_path.

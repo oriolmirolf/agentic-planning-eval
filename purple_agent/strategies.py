@@ -1,22 +1,28 @@
 from __future__ import annotations
-from typing import Optional, Dict, Any, List
+
+from typing import Any
+
 
 # Utilities
 def _extract_codeblock(text: str) -> str:
     import re
+
     m = re.search(r"```[a-zA-Z0-9_-]*\n(.*?)\n```", text, re.DOTALL)
-    return (m.group(1).strip() if m else text.strip())
+    return m.group(1).strip() if m else text.strip()
+
 
 def _only_actions_codeblock(text: str) -> str:
     body = _extract_codeblock(text)
     lines = [ln.rstrip() for ln in body.splitlines() if ln.strip()]
     return "\n".join(lines) + ("\n" if lines else "")
 
+
 # ---------------------------
 # Baseline / CoT / LtM / SC
 # ---------------------------
 
-def run_base(planner: "LLMClient", problem_nl: str, *, temperature: float = 0.0) -> str:
+
+def run_base(planner: LLMClient, problem_nl: str, *, temperature: float = 0.0) -> str:
     prompt = f"""You are a PDDL planning agent.
 Task: Produce a valid PDDL plan that solves the problem.
 Constraints:
@@ -30,7 +36,8 @@ Problem:
     out = planner.generate(prompt, temperature=temperature)
     return _only_actions_codeblock(out)
 
-def run_cot(planner: "LLMClient", problem_nl: str, *, temperature: float = 0.2) -> str:
+
+def run_cot(planner: LLMClient, problem_nl: str, *, temperature: float = 0.2) -> str:
     prompt = f"""You are a PDDL planning agent.
 Think step-by-step about preconditions/effects, then return ONLY the final plan in a single fenced code block.
 Do not include explanations inside the code block.
@@ -41,7 +48,8 @@ Problem:
     out = planner.generate(prompt, temperature=temperature)
     return _only_actions_codeblock(out)
 
-def run_ltm(planner: "LLMClient", problem_nl: str, *, temperature: float = 0.2) -> str:
+
+def run_ltm(planner: LLMClient, problem_nl: str, *, temperature: float = 0.2) -> str:
     prompt = f"""You are a PDDL planning agent.
 Use Least-to-Most:
 1) Decompose into ordered subgoals.
@@ -54,9 +62,16 @@ Problem:
     out = planner.generate(prompt, temperature=temperature)
     return _only_actions_codeblock(out)
 
-def run_cot_self_consistency(planner: "LLMClient", judge: Optional["LLMClient"],
-                             problem_nl: str, *, samples: int = 3, temp: float = 0.7) -> str:
-    cands: List[str] = []
+
+def run_cot_self_consistency(
+    planner: LLMClient,
+    judge: LLMClient | None,
+    problem_nl: str,
+    *,
+    samples: int = 3,
+    temp: float = 0.7,
+) -> str:
+    cands: list[str] = []
     cot_prompt = f"""You are a PDDL planning agent.
 Think step-by-step, then return ONLY the final plan in one fenced code block.
 Problem:
@@ -68,12 +83,14 @@ Problem:
 
     # majority by normalized text
     from collections import Counter
+
     normalized = ["\n".join(s.strip().split()) for s in cands]
     counts = Counter(normalized)
     best_text = max(counts.items(), key=lambda kv: kv[1])[0]
     best_plan = cands[normalized.index(best_text)]
 
     if judge:
+
         def judge_score(p: str) -> float:
             jprompt = f"""Rate this PDDL plan from 0 (invalid) to 1 (likely valid & minimal):
 Plan:
@@ -84,6 +101,7 @@ Plan:
 ```"""
             js = judge.generate(jprompt, temperature=0.0).strip()
             import re
+
             m = re.search(r"\b0(\.\d+)?\b|\b1(\.0+)?\b", js)
             try:
                 return float(m.group(0)) if m else 0.0
@@ -95,13 +113,19 @@ Plan:
 
     return best_plan
 
+
 # ------------------------------
 # Popular single-turn extras
 # ------------------------------
 
-def run_few_shot(planner: "LLMClient", problem_nl: str, *,
-                 examples: List[Dict[str, str]] | None = None,
-                 temperature: float = 0.0) -> str:
+
+def run_few_shot(
+    planner: LLMClient,
+    problem_nl: str,
+    *,
+    examples: list[dict[str, str]] | None = None,
+    temperature: float = 0.0,
+) -> str:
     """
     Few-shot prompting: prepend k exemplars (mini NL description + plan).
     examples: list of {"desc": "...", "plan": "(act ...)\n(...)"}
@@ -133,7 +157,10 @@ Problem:
     out = planner.generate(prompt, temperature=temperature)
     return _only_actions_codeblock(out)
 
-def run_self_refine(planner: "LLMClient", problem_nl: str, *, temperature: float = 0.2) -> str:
+
+def run_self_refine(
+    planner: LLMClient, problem_nl: str, *, temperature: float = 0.2
+) -> str:
     """
     Self-Refine (single-turn): draft -> critique -> revise; return only the final code block.
     """
@@ -150,10 +177,13 @@ Problem:
     out = planner.generate(prompt, temperature=temperature)
     return _only_actions_codeblock(out)
 
-def run_deliberate(planner: "LLMClient", problem_nl: str, *,
-                   drafts: int = 3, temperature: float = 0.5) -> str:
+
+def run_deliberate(
+    planner: LLMClient, problem_nl: str, *, drafts: int = 3, temperature: float = 0.5
+) -> str:
     """
-    Deliberate: generate a few short internal 'deliberations' then synthesize one final plan.
+    Deliberate: generate a few short internal 'deliberations' then synthesize
+    one final plan.
     Single model call; model is instructed to only output the final plan code block at the end.
     """
     prompt = f"""You are a PDDL planning agent.
@@ -169,42 +199,81 @@ Problem:
     out = planner.generate(prompt, temperature=temperature)
     return _only_actions_codeblock(out)
 
+
 # -------------
 # Dispatcher
 # -------------
-def run_strategy(name: str, *, planner: "LLMClient", judge: Optional["LLMClient"], problem_nl: str,
-                 settings: Optional[Dict[str, Any]] = None) -> str:
+def run_strategy(
+    name: str,
+    *,
+    planner: LLMClient,
+    judge: LLMClient | None,
+    problem_nl: str,
+    settings: dict[str, Any] | None = None,
+) -> str:
     settings = settings or {}
     if name == "base":
-        return run_base(planner, problem_nl, temperature=settings.get("base", {}).get("temperature", 0.0))
+        return run_base(
+            planner,
+            problem_nl,
+            temperature=settings.get("base", {}).get("temperature", 0.0),
+        )
     if name == "cot":
-        return run_cot(planner, problem_nl, temperature=settings.get("cot", {}).get("temperature", 0.2))
+        return run_cot(
+            planner,
+            problem_nl,
+            temperature=settings.get("cot", {}).get("temperature", 0.2),
+        )
     if name == "ltm":
-        return run_ltm(planner, problem_nl, temperature=settings.get("ltm", {}).get("temperature", 0.2))
+        return run_ltm(
+            planner,
+            problem_nl,
+            temperature=settings.get("ltm", {}).get("temperature", 0.2),
+        )
     if name == "cot_sc":
         sc = settings.get("cot_sc", {})
-        return run_cot_self_consistency(planner, judge, problem_nl,
-                                        samples=int(sc.get("samples", 3)),
-                                        temp=float(sc.get("temperature", 0.7)))
+        return run_cot_self_consistency(
+            planner,
+            judge,
+            problem_nl,
+            samples=int(sc.get("samples", 3)),
+            temp=float(sc.get("temperature", 0.7)),
+        )
     if name == "few_shot":
         fs = settings.get("few_shot", {})
-        return run_few_shot(planner, problem_nl,
-                            examples=fs.get("examples"),
-                            temperature=float(fs.get("temperature", 0.0)))
+        return run_few_shot(
+            planner,
+            problem_nl,
+            examples=fs.get("examples"),
+            temperature=float(fs.get("temperature", 0.0)),
+        )
     if name == "self_refine":
         sr = settings.get("self_refine", {})
-        return run_self_refine(planner, problem_nl, temperature=float(sr.get("temperature", 0.2)))
+        return run_self_refine(
+            planner, problem_nl, temperature=float(sr.get("temperature", 0.2))
+        )
     if name == "deliberate":
         dl = settings.get("deliberate", {})
-        return run_deliberate(planner, problem_nl,
-                              drafts=int(dl.get("drafts", 3)),
-                              temperature=float(dl.get("temperature", 0.5)))
+        return run_deliberate(
+            planner,
+            problem_nl,
+            drafts=int(dl.get("drafts", 3)),
+            temperature=float(dl.get("temperature", 0.5)),
+        )
     raise ValueError(f"Unknown strategy: {name}")
+
 
 # --- Back-compat alias (some callers may still import this) ---
 def run_direct(*, name: str, planner, judge, problem_nl: str, settings=None) -> str:
     """Deprecated alias for run_strategy to preserve older callers."""
-    return run_strategy(name, planner=planner, judge=judge, problem_nl=problem_nl, settings=settings or {})
+    return run_strategy(
+        name,
+        planner=planner,
+        judge=judge,
+        problem_nl=problem_nl,
+        settings=settings or {},
+    )
+
 
 __all__ = [
     "run_strategy",

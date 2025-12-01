@@ -1,41 +1,43 @@
 # /Oriol-TFM/green_agent/a2a_server.py
 from __future__ import annotations
+
 import argparse
 import json
 import logging
 from typing import Any
 
 import uvicorn
-from pydantic import BaseModel, HttpUrl, ValidationError
-
 from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.events import EventQueue
-from a2a.server.tasks import TaskUpdater, InMemoryTaskStore
-from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.apps import A2AStarletteApplication
+from a2a.server.events import EventQueue
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import (
     AgentCapabilities,
     AgentCard,
     AgentSkill,
-    InvalidParamsError,
     InternalError,
-    TaskState,
-    UnsupportedOperationError,
+    InvalidParamsError,
     Part,
+    TaskState,
     TextPart,
+    UnsupportedOperationError,
 )
-from a2a.utils import new_task, new_agent_text_message
+from a2a.utils import new_agent_text_message, new_task
+from pydantic import BaseModel, HttpUrl, ValidationError
 
+from .cli import _resolve_paths  # reuse your path resolver
 from .config import EvalConfig
 from .runner import evaluate_once
-from .cli import _resolve_paths  # reuse your path resolver
 
 log = logging.getLogger("pddl_green")
 
 
 class EvalRequest(BaseModel):
     participants: dict[str, HttpUrl]  # e.g. {"planner": "http://..."}
-    config: dict[str, Any]            # e.g. {"domain": "blocks", "index": 1, "check_redundancy": true}
+    config: dict[
+        str, Any
+    ]  # e.g. {"domain": "blocks", "index": 1, "check_redundancy": true}
 
 
 class GreenAgent:
@@ -47,7 +49,10 @@ class PDDLGreen(GreenAgent):
     def validate_request(self, request: EvalRequest) -> tuple[bool, str]:
         parts = request.participants or {}
         if not parts:
-            return False, "participants mapping is required (e.g., {'planner': 'http://host:port'})"
+            return (
+                False,
+                "participants mapping is required (e.g., {'planner': 'http://host:port'})",
+            )
         if "planner" not in parts and len(parts) != 1:
             return False, "include a 'planner' role or provide exactly one participant"
         cfg = request.config or {}
@@ -63,17 +68,24 @@ class PDDLGreen(GreenAgent):
 
     async def run_eval(self, request: EvalRequest, updater: TaskUpdater) -> None:
         cfg_in = request.config or {}
-        role = "planner" if "planner" in request.participants else list(request.participants.keys())[0]
+        role = (
+            "planner"
+            if "planner" in request.participants
+            else list(request.participants.keys())[0]
+        )
         purple_url = str(request.participants[role])
 
         auto = _resolve_paths(cfg_in.get("domain"), int(cfg_in.get("index")))
         if not auto["domain"] or not auto["problem"]:
-            raise ValueError("Could not resolve domain/problem; check config.domain and config.index")
+            raise ValueError(
+                "Could not resolve domain/problem; check config.domain and config.index"
+            )
 
         await updater.update_status(
             TaskState.working,
             new_agent_text_message(
-                f"Starting PDDL evaluation: domain='{cfg_in.get('domain')}', index={cfg_in.get('index')}\n"
+                f"Starting PDDL evaluation: domain='{cfg_in.get('domain')}', "
+                "index={cfg_in.get('index')}\n"
                 f"Planner (A2A): {purple_url}"
             ),
         )
@@ -126,7 +138,7 @@ class GreenExecutor(AgentExecutor):
             if not ok:
                 raise InvalidParamsError(message=msg)
         except ValidationError as e:
-            raise InvalidParamsError(message=e.json())
+            raise InvalidParamsError(message=e.json()) from e
 
         msg = context.message
         if not msg:
@@ -136,7 +148,9 @@ class GreenExecutor(AgentExecutor):
         await event_queue.enqueue_event(task)
         updater = TaskUpdater(event_queue, task.id, task.context_id)
 
-        await updater.update_status(TaskState.working, new_agent_text_message("Assessment received."))
+        await updater.update_status(
+            TaskState.working, new_agent_text_message("Assessment received.")
+        )
 
         try:
             await self.agent.run_eval(req, updater)
@@ -146,7 +160,7 @@ class GreenExecutor(AgentExecutor):
             raise
         except Exception as e:
             await updater.failed(new_agent_text_message(f"Agent error: {e}"))
-            raise InternalError(message=str(e))
+            raise InternalError(message=str(e)) from e
 
     async def cancel(self, request: RequestContext, event_queue: EventQueue):
         raise UnsupportedOperationError()
@@ -156,16 +170,27 @@ def _agent_card(card_url: str) -> AgentCard:
     skill = AgentSkill(
         id="pddl_plan_benchmark",
         name="PDDL Plan Benchmark",
-        description="Evaluates a purple planning agent by validating a plan with VAL for a selected example/index.",
+        description="Evaluates a purple planning agent by validating a plan with VAL"
+        " for a selected example/index.",
         tags=["planning", "pddl", "validation"],
-        examples=[json.dumps({
-            "participants": {"planner": "http://127.0.0.1:9020/"},
-            "config": {"domain": "blocks", "index": 1, "check_redundancy": True}
-        }, indent=2)],
+        examples=[
+            json.dumps(
+                {
+                    "participants": {"planner": "http://127.0.0.1:9020/"},
+                    "config": {
+                        "domain": "blocks",
+                        "index": 1,
+                        "check_redundancy": True,
+                    },
+                },
+                indent=2,
+            )
+        ],
     )
     return AgentCard(
         name="TFM-Green-PDDL",
-        description="Green agent that evaluates PDDL plans produced by a purple agent (A2A).",
+        description="Green agent that evaluates PDDL plans produced by a "
+        "purple agent (A2A).",
         url=card_url,
         version="1.0.0",
         default_input_modes=["text"],
@@ -176,18 +201,24 @@ def _agent_card(card_url: str) -> AgentCard:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Run the A2A Green server for the PDDL benchmark.")
+    parser = argparse.ArgumentParser(
+        description="Run the A2A Green server for the PDDL benchmark."
+    )
     parser.add_argument("--host", type=str, default="127.0.0.1")
     parser.add_argument("--port", type=int, default=9009)
-    parser.add_argument("--card-url", type=str, help="External URL to publish in the agent card")
+    parser.add_argument(
+        "--card-url", type=str, help="External URL to publish in the agent card"
+    )
     args = parser.parse_args()
 
     agent = PDDLGreen()
     executor = GreenExecutor(agent)
-    handler = DefaultRequestHandler(agent_executor=executor, task_store=InMemoryTaskStore())
+    handler = DefaultRequestHandler(
+        agent_executor=executor, task_store=InMemoryTaskStore()
+    )
     app = A2AStarletteApplication(
         agent_card=_agent_card(args.card_url or f"http://{args.host}:{args.port}/"),
-        http_handler=handler
+        http_handler=handler,
     ).build()
 
     uvicorn.run(app, host=args.host, port=args.port)

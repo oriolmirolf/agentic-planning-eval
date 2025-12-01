@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import os
-from typing import Optional
+
 from purple_agent.base import PurpleAgent
+
 
 def _extract_text_from_responses(resp) -> str:
     # (unchanged extractor)
@@ -33,8 +35,8 @@ def _extract_text_from_responses(resp) -> str:
 
 
 class OpenAIPurpleAgent(PurpleAgent):
-    def __init__(self, model: Optional[str] = None, temperature: float = 0.0,
-                 base_url: Optional[str] = None, api_key: Optional[str] = None) -> None:
+    def __init__(self, model: str | None = None, temperature: float = 0.0,
+                 base_url: str | None = None, api_key: str | None = None) -> None:
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.temperature = float(temperature)
 

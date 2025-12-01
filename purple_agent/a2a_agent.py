@@ -1,17 +1,26 @@
 # /Oriol-TFM/purple_agent/a2a_agent.py
 from __future__ import annotations
-from typing import Optional
-from uuid import uuid4
-import threading
-import asyncio
-import httpx
 
-from a2a.client import A2ACardResolver, ClientFactory, ClientConfig
-from a2a.types import Message, Part, Role, TextPart, DataPart, TaskStatusUpdateEvent, TaskArtifactUpdateEvent
+import asyncio
+import threading
+from uuid import uuid4
+
+import httpx
+from a2a.client import A2ACardResolver, ClientConfig, ClientFactory
+from a2a.types import (
+    DataPart,
+    Message,
+    Part,
+    Role,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
+    TextPart,
+)
+
 from .base import PurpleAgent
 
 
-def _new_message(text: str, context_id: Optional[str] = None) -> Message:
+def _new_message(text: str, context_id: str | None = None) -> Message:
     return Message(
         kind="message",
         role=Role.user,
@@ -40,7 +49,7 @@ class _AsyncA2AClient:
     def __init__(self, url: str, timeout: float = 120.0) -> None:
         self.url = url
         self.timeout = timeout
-        self.context_id: Optional[str] = None
+        self.context_id: str | None = None
 
     async def send(self, text: str) -> str:
         async with httpx.AsyncClient(timeout=self.timeout) as httpx_client:

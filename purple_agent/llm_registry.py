@@ -1,11 +1,15 @@
 # /Oriol-TFM/purple_agent/llm_registry.py
 from __future__ import annotations
-import os, re
+
+import os
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Any
 
 # OpenAI client
-from openai import OpenAI  # Official OpenAI SDK (Responses API)  # See docs: platform.openai.com
+from openai import (
+    OpenAI,  # Official OpenAI SDK (Responses API)  # See docs: platform.openai.com
+)
+
 # Anthropic client
 try:
     from anthropic import Anthropic
@@ -23,8 +27,8 @@ class LLMError(RuntimeError): pass
 class LLMConfig:
     provider: str                # "openai" | "openai_compat" | "anthropic" | "google"
     model: str
-    base_url: Optional[str] = None
-    api_key: Optional[str] = None
+    base_url: str | None = None
+    api_key: str | None = None
     temperature: float = 0.2
     max_tokens: int = 2048
 
@@ -33,9 +37,9 @@ class LLMClient:
     def __init__(self, cfg: LLMConfig):
         self.cfg = cfg
 
-    def generate(self, prompt: str, *, system: Optional[str] = None,
-                 temperature: Optional[float] = None,
-                 max_tokens: Optional[int] = None) -> str:
+    def generate(self, prompt: str, *, system: str | None = None,
+                 temperature: float | None = None,
+                 max_tokens: int | None = None) -> str:
         raise NotImplementedError
 
 # -------------------- OpenAI + OpenAI-compatible (vLLM, etc.) --------------------
@@ -54,7 +58,7 @@ class OpenAICompatClient(LLMClient):
             kwargs["api_key"] = cfg.api_key
         self.client = OpenAI(**kwargs)  # type: ignore
 
-    def _try_responses(self, system: Optional[str], prompt: str, temperature: float, max_tokens: int) -> Optional[str]:
+    def _try_responses(self, system: str | None, prompt: str, temperature: float, max_tokens: int) -> str | None:
         try:
             # Responses API: single-string input is enough; we include system prefix inline if provided
             if system:
@@ -96,7 +100,7 @@ class OpenAICompatClient(LLMClient):
             # Otherwise re-raise
             raise
 
-    def _chat_completions(self, system: Optional[str], prompt: str, temperature: float, max_tokens: int) -> str:
+    def _chat_completions(self, system: str | None, prompt: str, temperature: float, max_tokens: int) -> str:
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
@@ -109,9 +113,9 @@ class OpenAICompatClient(LLMClient):
         )
         return resp.choices[0].message.content or ""
 
-    def generate(self, prompt: str, *, system: Optional[str] = None,
-                 temperature: Optional[float] = None,
-                 max_tokens: Optional[int] = None) -> str:
+    def generate(self, prompt: str, *, system: str | None = None,
+                 temperature: float | None = None,
+                 max_tokens: int | None = None) -> str:
         t = float(self.cfg.temperature if temperature is None else temperature)
         mt = int(self.cfg.max_tokens if max_tokens is None else max_tokens)
         # Try Responses API first
@@ -130,9 +134,9 @@ class AnthropicClient(LLMClient):
         super().__init__(cfg)
         self.client = Anthropic(api_key=cfg.api_key or os.getenv("ANTHROPIC_API_KEY"))
 
-    def generate(self, prompt: str, *, system: Optional[str] = None,
-                 temperature: Optional[float] = None,
-                 max_tokens: Optional[int] = None) -> str:
+    def generate(self, prompt: str, *, system: str | None = None,
+                 temperature: float | None = None,
+                 max_tokens: int | None = None) -> str:
         t = float(self.cfg.temperature if temperature is None else temperature)
         mt = int(self.cfg.max_tokens if max_tokens is None else max_tokens)
         # Some SDK versions accept 'system='; to be maximally compatible, inline system text at the top.
@@ -160,9 +164,9 @@ class GoogleGenAIClient(LLMClient):
         # The SDK reads GEMINI_API_KEY / GOOGLE_API_KEY env vars too; we pass explicitly if provided
         self.client = genai.Client(api_key=cfg.api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
 
-    def generate(self, prompt: str, *, system: Optional[str] = None,
-                 temperature: Optional[float] = None,
-                 max_tokens: Optional[int] = None) -> str:
+    def generate(self, prompt: str, *, system: str | None = None,
+                 temperature: float | None = None,
+                 max_tokens: int | None = None) -> str:
         t = float(self.cfg.temperature if temperature is None else temperature)
         mt = int(self.cfg.max_tokens if max_tokens is None else max_tokens)
         combined = f"{system.strip()}\n\n{prompt.strip()}" if system else prompt
@@ -183,8 +187,8 @@ class LLMRegistry:
       {"provider": "anthropic", "model": "claude-3-7-sonnet", "api_key": "..."}
       {"provider": "google", "model": "gemini-2.5-pro", "api_key": "..."}
     """
-    def __init__(self, role_to_cfg: Dict[str, Dict[str, Any]]):
-        self._clients: Dict[str, LLMClient] = {}
+    def __init__(self, role_to_cfg: dict[str, dict[str, Any]]):
+        self._clients: dict[str, LLMClient] = {}
         for role, raw in role_to_cfg.items():
             cfg = LLMConfig(
                 provider=raw.get("provider", "openai").lower(),

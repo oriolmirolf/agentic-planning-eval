@@ -1,10 +1,16 @@
 # green_agent/val_wrapper.py
 from __future__ import annotations
-import os, shutil, subprocess, tempfile, re, time
-from dataclasses import dataclass, field
-from typing import List, Optional, Tuple, Dict
 
-def guess_val_binary(explicit: Optional[str]) -> Optional[str]:
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import time
+from dataclasses import dataclass, field
+
+
+def guess_val_binary(explicit: str | None) -> str | None:
     if explicit and os.path.exists(explicit):
         return explicit
     for name in ("Validate", "validate", "Validate.exe", "validate.exe"):
@@ -16,72 +22,122 @@ def guess_val_binary(explicit: Optional[str]) -> Optional[str]:
         return envp
     return None
 
+
 # --- Patterns seen across VAL variants ---
 _UNSAT_RE = re.compile(r"Unsatisfied precondition", re.IGNORECASE)
-_UNSAT_LINE_RE = re.compile(r"Plan failed because of unsatisfied precondition", re.IGNORECASE)
+_UNSAT_LINE_RE = re.compile(
+    r"Plan failed because of unsatisfied precondition", re.IGNORECASE
+)
 _FAILED_AT_STEP_RE = re.compile(r"\baction\s+(\d+)\b", re.IGNORECASE)
 _TIME_RE = re.compile(r"Checking next happening\s*\(time\s*(\d+)\)", re.IGNORECASE)
 
 _VALUE_RE = re.compile(r"Value\s*[:=]\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
 _SUCCESS_RE = re.compile(r"Successful plans|Plan valid", re.IGNORECASE)
-_FAILED_RE = re.compile(r"Failed plans|Plan failed|Invalid plan|Goal not satisfied", re.IGNORECASE)
+_FAILED_RE = re.compile(
+    r"Failed plans|Plan failed|Invalid plan|Goal not satisfied", re.IGNORECASE
+)
 _GOAL_NOT_SAT_RE = re.compile(r"Goal not satisfied", re.IGNORECASE)
 
 _ACTION_LINE_RE = re.compile(r"^\s*\(([^()]+)\)\s*$")  # "(move-small ...)"
-_PLAN_INDEX_RE = re.compile(r"^\s*(\d+)\s*:\s*$")      # "1:" then action on next line
+
+# --- UPDATED REGEX: Matches "1:" OR "1: (action)" ---
+_PLAN_STEP_RE = re.compile(r"^\s*(\d+)\s*:\s*(.*)$")
+_ACTION_INNER_RE = re.compile(r"\(([^()]+)\)")
 
 _ADDING_RE = re.compile(r"^\s*Adding\s*\((.+)\)\s*$", re.IGNORECASE)
 _DELETING_RE = re.compile(r"^\s*Deleting\s*\((.+)\)\s*$", re.IGNORECASE)
 
+
 @dataclass(slots=True)
 class Unsat:
-    at_action_index: Optional[int]
+    at_action_index: int | None
     detail: str
+
 
 @dataclass(slots=True)
 class TraceStep:
     time: int
-    action: Optional[str] = None
-    adds: List[str] = field(default_factory=list)
-    deletes: List[str] = field(default_factory=list)
+    action: str | None = None
+    adds: list[str] = field(default_factory=list)
+    deletes: list[str] = field(default_factory=list)
     failed: bool = False
-    failure_detail: Optional[str] = None
+    failure_detail: str | None = None
+
 
 @dataclass(slots=True)
 class ValResult:
     ok: bool
     stdout: str
     stderr: str
-    value: Optional[float] = None
-    unsatisfied: List[Unsat] = field(default_factory=list)
-    failure_reason: Optional[str] = None  # "goal_not_satisfied" | "precondition_unsatisfied" | "unknown_failure" | "no_output"
-    plan_size: Optional[int] = None
-    plan_actions: Dict[int, str] = field(default_factory=dict)  # index -> "(action ...)"
-    steps: List[TraceStep] = field(default_factory=list)         # per happening
-    last_executed_step: Optional[int] = None
+    value: float | None = None
+    unsatisfied: list[Unsat] = field(default_factory=list)
+    failure_reason: str | None = None
+    plan_size: int | None = None
+    plan_actions: dict[int, str] = field(
+        default_factory=dict
+    )  # index -> "(action ...)"
+    steps: list[TraceStep] = field(default_factory=list)  # per happening
+    last_executed_step: int | None = None
     # NEW: retry diagnostics
     attempts: int = 1
-    warning: Optional[str] = None
+    warning: str | None = None
 
-def _parse_plan_listing(lines: List[str]) -> Dict[int, str]:
-    """Parse the 'Plan to validate' listing into {index: action}."""
-    plan: Dict[int, str] = {}
+
+def _parse_plan_listing(lines: list[str]) -> dict[int, str]:
+    """
+    Parse the 'Plan to validate' listing into {index: action}.
+    Handles both:
+      1: (move a b)
+    And:
+      1:
+      (move a b)
+    """
+    plan: dict[int, str] = {}
     i = 0
     while i < len(lines):
-        m = _PLAN_INDEX_RE.match(lines[i])
+        line = lines[i].strip()
+        m = _PLAN_STEP_RE.match(line)
         if m:
             idx = int(m.group(1))
-            # find next non-empty action line
-            j = i + 1
-            while j < len(lines) and not lines[j].strip():
-                j += 1
-            if j < len(lines):
-                mm = _ACTION_LINE_RE.match(lines[j])
-                if mm:
-                    plan[idx] = "(" + mm.group(1).strip() + ")"
-                    i = j
+            remainder = m.group(2).strip()
+
+            action_found = None
+
+            # Case 1: Action is on the same line -> "1: (move a b)"
+            if remainder and "(" in remainder:
+                m_act = _ACTION_INNER_RE.search(remainder)
+                if m_act:
+                    action_found = f"({m_act.group(1).strip()})"
+
+            # Case 2: Action is on the next line(s)
+            if not action_found:
+                j = i + 1
+                while j < len(lines):
+                    next_ln = lines[j].strip()
+                    if not next_ln:
+                        j += 1
+                        continue
+
+                    # If we hit the next index "2:", stop lookahead
+                    if _PLAN_STEP_RE.match(next_ln):
+                        break
+
+                    # Check if this line is an action
+                    m_act = _ACTION_INNER_RE.search(next_ln)
+                    if m_act:
+                        action_found = f"({m_act.group(1).strip()})"
+                        i = j  # Advance main loop past the action line
+                        break
+
+                    # If it's not empty and not an action, keep looking (garbage text)
+                    j += 1
+
+            if action_found:
+                plan[idx] = action_found
+
         i += 1
     return plan
+
 
 def _has_verdict(out: str) -> bool:
     """Heuristic: did VAL produce enough output to decide success/failure?"""
@@ -96,15 +152,16 @@ def _has_verdict(out: str) -> bool:
         or _TIME_RE.search(out)
     )
 
+
 def run_val(
     domain: str,
     problem: str,
     plan_text: str,
     *,
-    val_path: Optional[str] = None,
-    flags: Tuple[str, ...] = ("-v","-e"),
-    retries: int = 5,                 # NEW: up to 5 attempts
-    retry_backoff: float = 0.4,       # seconds, linear backoff per attempt
+    val_path: str | None = None,
+    flags: tuple[str, ...] = ("-v", "-e"),
+    retries: int = 5,  # NEW: up to 5 attempts
+    retry_backoff: float = 0.4,  # seconds, linear backoff per attempt
 ) -> ValResult:
     """
     Invoke VAL. If it appears to produce no output or no recognizable verdict,
@@ -115,23 +172,26 @@ def run_val(
         raise RuntimeError("VAL binary not found. Install or set VAL_PATH.")
 
     with tempfile.NamedTemporaryFile("w", suffix=".plan", delete=False) as tf:
-        tf.write(plan_text); tf.flush(); plan_path = tf.name
+        tf.write(plan_text)
+        tf.flush()
+        plan_path = tf.name
 
     out = ""
     err = ""
     attempts = 0
-    warning: Optional[str] = None
+    warning: str | None = None
 
     try:
         while True:
             attempts += 1
             cmd = [bin_path, *flags, domain, problem, plan_path]
-            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            proc = subprocess.run(cmd, capture_output=True, text=True)
             out, err = proc.stdout, proc.stderr
 
             if _has_verdict(out) or attempts >= max(1, retries):
                 if not _has_verdict(out):
-                    warning = f"VAL produced no recognizable output after {attempts} attempt(s)."
+                    warning = "VAL produced no recognizable output "
+                    "after {attempts} attempt(s)."
                     print(f"Warning: {warning}")
                     print(f"Error: STDERR:\n{err}")
                 break
@@ -146,20 +206,22 @@ def run_val(
         value = None
         mval = _VALUE_RE.search(out)
         if mval:
-            try: value = float(mval.group(1))
-            except ValueError: pass
+            try:
+                value = float(mval.group(1))
+            except ValueError:
+                pass
 
         lines = out.splitlines()
         plan_actions = _parse_plan_listing(lines)
         plan_size = max(plan_actions.keys(), default=0) or None
 
         # trace parsing
-        steps: List[TraceStep] = []
-        current: Optional[TraceStep] = None
-        current_step_idx: Optional[int] = None
+        steps: list[TraceStep] = []
+        current: TraceStep | None = None
+        current_step_idx: int | None = None
 
         unsatisfied: list[Unsat] = []
-        last_executed_step: Optional[int] = None
+        last_executed_step: int | None = None
 
         i = 0
         while i < len(lines):
@@ -172,10 +234,10 @@ def run_val(
                     steps.append(current)
                 current_step_idx = int(mtime.group(1))
                 current = TraceStep(
-                    time=current_step_idx,
-                    action=plan_actions.get(current_step_idx)
+                    time=current_step_idx, action=plan_actions.get(current_step_idx)
                 )
-                # If there was no failure note yet, we consider this step "executed" at least up to check.
+                # If there was no failure note yet, we consider this step "executed"
+                # at least up to check.
                 last_executed_step = current_step_idx
 
             elif _UNSAT_RE.search(line) or _UNSAT_LINE_RE.search(line):
@@ -183,8 +245,10 @@ def run_val(
                 idx = None
                 mact = _FAILED_AT_STEP_RE.search(line)
                 if mact:
-                    try: idx = int(mact.group(1))
-                    except ValueError: idx = None
+                    try:
+                        idx = int(mact.group(1))
+                    except ValueError:
+                        idx = None
                 # If not present, fall back to current step index
                 if idx is None:
                     idx = current_step_idx
@@ -222,7 +286,7 @@ def run_val(
             steps.append(current)
 
         # failure reason
-        failure_reason: Optional[str] = None
+        failure_reason: str | None = None
         if not ok:
             if not _has_verdict(out):
                 failure_reason = "no_output"
@@ -249,5 +313,7 @@ def run_val(
         )
 
     finally:
-        try: os.unlink(plan_path)
-        except Exception: pass
+        try:
+            os.unlink(plan_path)
+        except Exception:
+            pass

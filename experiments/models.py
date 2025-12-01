@@ -27,7 +27,6 @@ MODELS = {
     #     "api_key_env": "OPENAI_API_KEY",
     #     "temperature": 0.2,
     # },
-
     # # Useful legacy/baseline OpenAI models (still widely referenced)
     # "gpt41": {
     #     "provider": "openai",
@@ -41,14 +40,13 @@ MODELS = {
     #     "api_key_env": "OPENAI_API_KEY",
     #     "temperature": 0.2,
     # },
-
     # # ======================
     # # Anthropic (Claude API)
     # # ======================
     # # Use current snapshot IDs published by Anthropic docs.
     # "claude-sonnet-4.5": {
     #     "provider": "anthropic",
-    #     "model": "claude-sonnet-4-5-20250929",  # latest Sonnet 4.5 snapshot at time of writing
+    #     "model": "claude-sonnet-4-5-20250929",
     #     "api_key_env": "ANTHROPIC_API_KEY",
     #     "temperature": 0.2,
     # },
@@ -64,7 +62,6 @@ MODELS = {
     #     "api_key_env": "ANTHROPIC_API_KEY",
     #     "temperature": 0.2,
     # },
-
     # # ======================
     # # Google (Gemini API)
     # # ======================
@@ -80,13 +77,12 @@ MODELS = {
     #     "api_key_env": "GEMINI_API_KEY",
     #     "temperature": 0.2,
     # },
-
     # =======================================
     # Local OpenAI-compatible (vLLM via tunnel)
     # =======================================
     # Qwen2.5 7B Instruct served behind your launch_and_tunnel.sh (localhost:5678/v1)
     "qwen7b-local": {
-        "provider": "openai_compat",      # use OpenAI-compatible client with base_url
+        "provider": "openai_compat",  # use OpenAI-compatible client with base_url
         "model": "Qwen2.5-72B-Instruct",
         "base_url": "http://localhost:5679/v1",
         "api_key": "dummy",

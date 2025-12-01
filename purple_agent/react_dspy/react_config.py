@@ -1,15 +1,16 @@
 # purple_agent/react_dspy/react_config.py
 
 from __future__ import annotations
-from typing import List, Sequence, Callable, Dict
+
+from collections.abc import Callable, Sequence
 
 from . import react_tools
-from .react_settings import DEFAULT_ENABLED_TOOLS, ABLATION_TOOLSETS
+from .react_settings import ABLATION_TOOLSETS, DEFAULT_ENABLED_TOOLS
 
 ToolFn = Callable[..., str]
 
 # Name → function
-ALL_TOOLS: Dict[str, ToolFn] = {
+ALL_TOOLS: dict[str, ToolFn] = {
     "llm_decompose_task": react_tools.llm_decompose_task,
     "llm_generate_plan_outline": react_tools.llm_generate_plan_outline,
     "llm_critique_plan": react_tools.llm_critique_plan,
@@ -21,7 +22,7 @@ ALL_TOOLS: Dict[str, ToolFn] = {
 def resolve_tools(
     tool_names: Sequence[str] | None = None,
     preset: str | None = None,
-) -> List[ToolFn]:
+) -> list[ToolFn]:
     """
     Resolve tools chosen by:
     - explicit list, or

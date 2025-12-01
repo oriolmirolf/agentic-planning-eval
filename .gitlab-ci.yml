@@ -1,0 +1,24 @@
+stages:
+  - lint
+  - test
+
+default:
+  image: python:3.10-slim
+  before_script:
+    - pip install uv
+    - uv sync
+
+cache:
+  paths:
+    - .venv/
+
+lint-check:
+  stage: lint
+  script:
+    - uv run ruff format --check .
+    - uv run ruff check .
+
+unit-tests:
+  stage: test
+  script:
+    - uv run pytest tests/ -v

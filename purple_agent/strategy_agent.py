@@ -1,13 +1,16 @@
 # /Oriol-TFM/purple_agent/strategy_agent.py
 from __future__ import annotations
-from typing import Dict, Any, Optional
+
 import os
+from typing import Any
 
 from . import strategies as S
+
 
 # Minimal interface expected by strategies.py
 class LLMClient:
     def generate(self, prompt: str, temperature: float = 0.0) -> str: ...
+
 
 class OpenAICompatClient(LLMClient):
     """
@@ -21,9 +24,13 @@ class OpenAICompatClient(LLMClient):
       - "api_key" or "api_key_env"
       - "base_url"
     """
-    def __init__(self, *, model: str, api_key: Optional[str], base_url: Optional[str]) -> None:
+
+    def __init__(
+        self, *, model: str, api_key: str | None, base_url: str | None
+    ) -> None:
         from openai import OpenAI  # lazy import
-        kwargs: Dict[str, Any] = {}
+
+        kwargs: dict[str, Any] = {}
         if api_key:
             kwargs["api_key"] = api_key
         if base_url:
@@ -35,7 +42,9 @@ class OpenAICompatClient(LLMClient):
         # Prefer Responses API; fall back cleanly if temperature is not supported
         base = {"model": self._model, "input": prompt}
         try:
-            resp = self._client.responses.create(**{**base, "temperature": float(temperature)})
+            resp = self._client.responses.create(
+                **{**base, "temperature": float(temperature)}
+            )
         except Exception as e:
             if "Unsupported parameter" in str(e) and "temperature" in str(e):
                 resp = self._client.responses.create(**base)
@@ -68,7 +77,8 @@ class OpenAICompatClient(LLMClient):
                     return c
         return ""
 
-def _build_llm_client(cfg: Dict[str, Any]) -> LLMClient:
+
+def _build_llm_client(cfg: dict[str, Any]) -> LLMClient:
     provider = (cfg.get("provider") or "").strip().lower()
     model = cfg.get("model")
     if not model:
@@ -86,15 +96,24 @@ def _build_llm_client(cfg: Dict[str, Any]) -> LLMClient:
             base_url=cfg.get("base_url"),
         )
 
-    # You can extend here for "anthropic", "google", etc., when needed.
-    raise ValueError(f"Unsupported provider '{provider}'. Supported: openai, openai_compat")
+    raise ValueError(
+        f"Unsupported provider '{provider}'. Supported: openai, openai_compat"
+    )
+
 
 class StrategyPurpleAgent:
     """
     Wraps strategies.run_strategy(..) with planner (+ optional judge for cot_sc).
     roles: {"planner": <llm_cfg>, "judge": <llm_cfg>?}
     """
-    def __init__(self, *, strategy_name: str, roles: Dict[str, Dict[str, Any]], settings: Optional[Dict[str, Any]] = None):
+
+    def __init__(
+        self,
+        *,
+        strategy_name: str,
+        roles: dict[str, dict[str, Any]],
+        settings: dict[str, Any] | None = None,
+    ):
         self.strategy_name = strategy_name
         self.settings = settings or {}
         if "planner" not in roles:

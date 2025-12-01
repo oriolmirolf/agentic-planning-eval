@@ -1,8 +1,6 @@
 from __future__ import annotations
-from typing import Optional
 
 import dspy
-
 
 # === 1) Task decomposition (hierarchical planning) =========================
 
@@ -53,7 +51,7 @@ class PlanOutlineSignature(dspy.Signature):
 _plan_outline = dspy.ChainOfThought(PlanOutlineSignature)
 
 
-def llm_generate_plan_outline(problem_nl: str, subgoals: Optional[str] = "") -> str:
+def llm_generate_plan_outline(problem_nl: str, subgoals: str | None = "") -> str:
     """
     LLM-backed tool:
     Emit a high-level plan outline given the problem (and optionally subgoals).
@@ -117,7 +115,7 @@ class RefinePlanSignature(dspy.Signature):
 _refine_plan = dspy.ChainOfThought(RefinePlanSignature)
 
 
-def llm_refine_plan(problem_nl: str, plan: str, critique: Optional[str] = "") -> str:
+def llm_refine_plan(problem_nl: str, plan: str, critique: str | None = "") -> str:
     """
     LLM-backed tool:
     Repair / refine a plan, optionally conditioned on an explicit critique.

@@ -1,8 +1,11 @@
 # /Oriol-TFM/purple_agent/react_agent.py
 from __future__ import annotations
-import re, os
-from typing import Optional, List
+
+import os
+import re
+
 from openai import OpenAI
+
 from .base import PurpleAgent
 from .openai_agent import _extract_text_from_responses  # reuse your extractor
 
@@ -16,7 +19,7 @@ _REACT_SYSTEM = """You are a PDDL planning assistant using a ReAct loop (Thought
 - When the plan reaches the goal, output 'Finish:' followed by ONLY one code block that contains the full plan, one action per line, no timestamps or comments.
 """
 
-def _client(base_url: Optional[str], api_key: Optional[str]) -> OpenAI:
+def _client(base_url: str | None, api_key: str | None) -> OpenAI:
     kwargs = {}
     if base_url: kwargs["base_url"] = base_url
     if api_key: kwargs["api_key"] = api_key
@@ -31,9 +34,9 @@ class ReactPurpleAgent(PurpleAgent):
     """
     def __init__(
         self,
-        model: Optional[str] = None,
-        base_url: Optional[str] = None,
-        api_key: Optional[str] = None,
+        model: str | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
         temperature: float = 0.2,
         max_steps: int = 16,
     ) -> None:
@@ -47,13 +50,13 @@ class ReactPurpleAgent(PurpleAgent):
         return _extract_text_from_responses(resp)
 
     def generate_plan(self, *, problem_nl: str) -> str:
-        ctx: List[str] = []
+        ctx: list[str] = []
         ctx.append(_REACT_SYSTEM.strip())
         ctx.append("Problem:\n" + problem_nl.strip())
         ctx.append("Begin.\nThought:")  # first cue
 
         history = "\n\n".join(ctx)
-        plan_lines: List[str] = []
+        plan_lines: list[str] = []
 
         for step in range(self.max_steps):
             out = self._ask(history)

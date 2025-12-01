@@ -1,13 +1,13 @@
 # purple_agent/react_dspy/react_agent.py
 
 from __future__ import annotations
-from typing import Optional, Sequence
+
 import threading
+from collections.abc import Sequence
 
 import dspy
 
 from .react_config import resolve_tools
-
 
 _DSPY_LM_INITIALIZED = False
 _DSPY_LM_LOCK = threading.Lock()
@@ -49,10 +49,10 @@ class ReActDSPyPurpleAgent:
         self,
         model: str,
         base_url: str,
-        api_key: Optional[str],
+        api_key: str | None,
         temperature: float = 0.2,
-        enabled_tool_names: Optional[Sequence[str]] = None,
-        preset: Optional[str] = None,
+        enabled_tool_names: Sequence[str] | None = None,
+        preset: str | None = None,
         max_iters: int = 8,
     ):
         if api_key is None:

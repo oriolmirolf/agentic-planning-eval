@@ -25,27 +25,27 @@ Environment / paths:
 """
 
 from __future__ import annotations
+
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Tuple, Optional
 
+from dotenv import load_dotenv
 
 from green_agent.plan_parser import extract_plan
 from helpful.validate_all import find_problems  # reuse your problem discovery
-import re
-
-from dotenv import load_dotenv
 
 load_dotenv()
 
 _STEP0_RE = re.compile(r"^\s*step\s+\d+\s*:\s*(.+)$", re.IGNORECASE)
 _STEPN_RE = re.compile(r"^\s*\d+\s*:\s*(.+)$")
 
-def guess_ff_binary(explicit: Optional[str]) -> Optional[str]:
+
+def guess_ff_binary(explicit: str | None) -> str | None:
     """
     Try to locate the FF planner binary.
 
@@ -113,9 +113,9 @@ def run_ff_planner(
     domain_pddl: str,
     problem_pddl: str,
     mode: str,
-    extra_args: Optional[list[str]] = None,
-    timeout: Optional[float] = None,
-) -> Tuple[str, str, str, int]:
+    extra_args: list[str] | None = None,
+    timeout: float | None = None,
+) -> tuple[str, str, str, int]:
     """
     Invoke FF on (domain, problem) with a given mode:
 
@@ -140,8 +140,7 @@ def run_ff_planner(
     try:
         proc = subprocess.run(
             args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             text=True,
             timeout=timeout,
         )
@@ -156,10 +155,10 @@ def run_ff_planner(
 
 def _iter_problems(
     domain_dir: Path,
-    index: Optional[int],
-    start: Optional[int],
-    end: Optional[int],
-) -> List[Tuple[int, Path]]:
+    index: int | None,
+    start: int | None,
+    end: int | None,
+) -> list[tuple[int, Path]]:
     """
     Yield (index, problem_path) pairs.
 
@@ -167,7 +166,7 @@ def _iter_problems(
     Otherwise, we use helpful.validate_all.find_problems() and
     optionally filter by [start, end].
     """
-    probs: List[Tuple[int, Path]] = []
+    probs: list[tuple[int, Path]] = []
 
     if index is not None:
         p = domain_dir / "problems_pddl" / f"problem{index}.pddl"
@@ -219,31 +218,35 @@ def main():
         type=int,
         default=None,
         help="Single problem index (problem{index}.pddl). "
-             "If omitted, all problems are processed (optionally filtered by --start/--end).",
+        "If omitted, all problems are processed"
+        " (optionally filtered by --start/--end).",
     )
     ap.add_argument(
         "--start",
         type=int,
         default=None,
-        help="First index to include when scanning all problems (ignored if --index is set).",
+        help="First index to include when scanning all problems"
+        " (ignored if --index is set).",
     )
     ap.add_argument(
         "--end",
         type=int,
         default=None,
-        help="Last index to include when scanning all problems (ignored if --index is set).",
+        help="Last index to include when scanning all problems"
+        " (ignored if --index is set).",
     )
     ap.add_argument(
         "--planner",
         choices=["ff", "bfs"],
         default="bfs",
         help="ff = fast heuristic search (not guaranteed optimal); "
-             "bfs = BFS search (slower, but shortest plan in #actions).",
+        "bfs = BFS search (slower, but shortest plan in #actions).",
     )
     ap.add_argument(
         "--ff-path",
         default=None,
-        help="Explicit path to FF planner binary (otherwise uses FF_PLANNER_PATH / FF_PATH / PATH).",
+        help="Explicit path to FF planner binary"
+        "(otherwise uses FF_PLANNER_PATH / FF_PATH / PATH).",
     )
     ap.add_argument(
         "--out-dir",
@@ -289,7 +292,10 @@ def main():
 
     problems = _iter_problems(domain_dir, args.index, args.start, args.end)
     if not problems:
-        print(f"[ERROR] No problems found for domain '{args.domain}' with given filters.", file=sys.stderr)
+        print(
+            f"[ERROR] No problems found for domain '{args.domain}' with given filters.",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     out_root = Path(args.out_dir) / args.planner / args.domain
@@ -305,7 +311,9 @@ def main():
     successes = 0
     for idx, prob_path in problems:
         if not prob_path.exists():
-            print(f"[SKIP] problem{idx}: file not found at {prob_path}", file=sys.stderr)
+            print(
+                f"[SKIP] problem{idx}: file not found at {prob_path}", file=sys.stderr
+            )
             continue
 
         print(f"[RUN] problem{idx} ({prob_path.name}) ...", end="", flush=True)
@@ -332,7 +340,9 @@ def main():
         # Save .plan
         plan_path = out_root / f"problem{idx}.plan"
         plan_path.write_text(plan_text, encoding="utf-8")
-        num_actions = len([ln for ln in plan_text.splitlines() if ln.strip().startswith("(")])
+        num_actions = len(
+            [ln for ln in plan_text.splitlines() if ln.strip().startswith("(")]
+        )
 
         if args.save_raw:
             raw_out = out_root / f"problem{idx}.planner_stdout.txt"

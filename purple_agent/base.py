@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from typing import Protocol
 
 # we should substitute all this with A2A later on

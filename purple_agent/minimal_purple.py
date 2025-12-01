@@ -1,22 +1,24 @@
 from __future__ import annotations
-import argparse, os
-import uvicorn
 
+import argparse
+import os
+
+import uvicorn
 from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.events import EventQueue
-from a2a.server.tasks import TaskUpdater, InMemoryTaskStore
-from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.apps import A2AStarletteApplication
+from a2a.server.events import EventQueue
+from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.tasks import InMemoryTaskStore, TaskUpdater
 from a2a.types import (
-    AgentCard,
     AgentCapabilities,
+    AgentCard,
     AgentSkill,
-    TaskState,
-    UnsupportedOperationError,
     Part,
+    TaskState,
     TextPart,
+    UnsupportedOperationError,
 )
-from a2a.utils import new_task, new_agent_text_message
+from a2a.utils import new_agent_text_message, new_task
 
 
 class DummyPlanner(AgentExecutor):
@@ -61,7 +63,7 @@ def build_app(card_url: str):
     static_plan_text = None
     plan_path = os.getenv("STATIC_PLAN_PATH")
     if plan_path and os.path.exists(plan_path):
-        with open(plan_path, "r", encoding="utf-8") as f:
+        with open(plan_path, encoding="utf-8") as f:
             body = f.read().strip()
         static_plan_text = f"```\n{body}\n```"
 

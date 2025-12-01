@@ -1,33 +1,42 @@
 # /Oriol-TFM/experiments/run_prompting_grid_parallel.py
 from __future__ import annotations
-import argparse, importlib.util, os, sys, time, csv, json, re, threading, random
-from dataclasses import dataclass
+
+import argparse
+import csv
+import importlib.util
+import json
+import os
+import random
+import re
+import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any
 
 from rich.console import Console
 from rich.progress import (
-    Progress,
     BarColumn,
+    MofNCompleteColumn,
+    Progress,
     TextColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
-    MofNCompleteColumn,
 )
 
 from green_agent.cli import _resolve_paths
-from green_agent.plan_parser import extract_plan
 from green_agent.metrics import compute_metrics
-
+from green_agent.plan_parser import extract_plan
 from purple_agent.strategy_agent import StrategyPurpleAgent
 
 from .mlflow_utils import (
-    mlflow_run,
-    log_params as mlflow_log_params,
-    log_metrics as mlflow_log_metrics,
     log_artifacts as mlflow_log_artifacts,
     log_dataset_for_domain,
+    log_metrics as mlflow_log_metrics,
+    log_params as mlflow_log_params,
+    mlflow_run,
 )
 
 console = Console()
@@ -35,7 +44,7 @@ console = Console()
 # ---------- model loading ----------
 
 
-def _load_models(py_path: Path) -> Dict[str, Dict[str, Any]]:
+def _load_models(py_path: Path) -> dict[str, dict[str, Any]]:
     spec = importlib.util.spec_from_file_location("exp_models", str(py_path))
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Cannot import: {py_path}")
@@ -68,21 +77,21 @@ class Job:
     domain_path: str
     problem_path: str
     prompt_text: str
-    optimal_cost: Optional[float]
-    planner_cfg: Dict[str, Any]
-    judge_cfg: Optional[Dict[str, Any]]
-    run_dir: Optional[Path] = None
-    plan_path: Optional[Path] = None
-    raw_path: Optional[Path] = None
+    optimal_cost: float | None
+    planner_cfg: dict[str, Any]
+    judge_cfg: dict[str, Any] | None
+    run_dir: Path | None = None
+    plan_path: Path | None = None
+    raw_path: Path | None = None
 
 
-def _roles_for(job: Job) -> Dict[str, Dict[str, Any]]:
+def _roles_for(job: Job) -> dict[str, dict[str, Any]]:
     if job.technique == "cot_sc":
         return {"planner": job.planner_cfg, "judge": (job.judge_cfg or job.planner_cfg)}
     return {"planner": job.planner_cfg}
 
 
-def _providers_for(job: Job) -> List[str]:
+def _providers_for(job: Job) -> list[str]:
     provs = set()
     provs.add(job.planner_cfg.get("provider"))
     if job.technique == "cot_sc" and job.judge_cfg:
@@ -90,7 +99,7 @@ def _providers_for(job: Job) -> List[str]:
     return sorted(p for p in provs if p)
 
 
-def _fmt_inflight(d: Dict[str, int]) -> str:
+def _fmt_inflight(d: dict[str, int]) -> str:
     return (
         "In-flight LLM: {total} "
         f"[OpenAI {d.get('openai', 0)} | Anthropic {d.get('anthropic', 0)} | "
@@ -105,12 +114,12 @@ def _llm_generate(
     job: Job,
     batch_root: Path,
     *,
-    semaphores: Dict[str, threading.BoundedSemaphore],
-    progress: Optional[Progress],
-    inflight: Dict[str, int],
+    semaphores: dict[str, threading.BoundedSemaphore],
+    progress: Progress | None,
+    inflight: dict[str, int],
     lock: threading.Lock,
     status_task: int,
-    strategy_settings: Dict[str, Any],
+    strategy_settings: dict[str, Any],
 ) -> Job:
     provs = _providers_for(job)
     # Acquire provider semaphores in sorted order to avoid deadlocks
@@ -131,7 +140,9 @@ def _llm_generate(
         run_dir.mkdir(parents=True, exist_ok=True)
 
         roles = _roles_for(job)
-        agent = StrategyPurpleAgent(strategy_name=job.technique, roles=roles, settings=strategy_settings)
+        agent = StrategyPurpleAgent(
+            strategy_name=job.technique, roles=roles, settings=strategy_settings
+        )
 
         t0 = time.time()
         raw_out = agent.generate_plan(problem_nl=job.prompt_text or "")
@@ -173,7 +184,9 @@ def _llm_generate(
             s.release()
 
 
-def _val_validate(job: Job, *, val_path: Optional[str], tolerance: float = 0.001) -> Dict[str, Any]:
+def _val_validate(
+    job: Job, *, val_path: str | None, tolerance: float = 0.001
+) -> dict[str, Any]:
     assert job.plan_path and job.run_dir
     plan_txt = job.plan_path.read_text(encoding="utf-8")
     flags = ("-v", "-t", str(tolerance))
@@ -189,8 +202,12 @@ def _val_validate(job: Job, *, val_path: Optional[str], tolerance: float = 0.001
     val_stderr_path = job.run_dir / "val_stderr.txt"
     val_trace_path = job.run_dir / "val_trace.json"
 
-    val_stdout_path.write_text(metrics.val_stdout or "", encoding="utf-8", errors="replace")
-    val_stderr_path.write_text(metrics.val_stderr or "", encoding="utf-8", errors="replace")
+    val_stdout_path.write_text(
+        metrics.val_stdout or "", encoding="utf-8", errors="replace"
+    )
+    val_stderr_path.write_text(
+        metrics.val_stderr or "", encoding="utf-8", errors="replace"
+    )
     val_trace_path.write_text(
         json.dumps(
             [
@@ -259,14 +276,19 @@ def main():
     ap.add_argument(
         "--techniques",
         default="base,cot,ltm",
-        help="Comma-separated subset of {base,cot,ltm,cot_sc}. Default: base,cot,ltm (faster).",
+        help="Comma-separated subset of {base,cot,ltm,cot_sc}. "
+        "Default: base,cot,ltm (faster).",
     )
     ap.add_argument("--out", default="out/prompting-par")
     ap.add_argument("--val-path", default=None)
 
     # global worker caps
-    ap.add_argument("--llm-workers", type=int, default=16, help="Total threads for LLM generation")
-    ap.add_argument("--val-workers", type=int, default=1, help="Threads for VAL (1 == safest)")
+    ap.add_argument(
+        "--llm-workers", type=int, default=16, help="Total threads for LLM generation"
+    )
+    ap.add_argument(
+        "--val-workers", type=int, default=1, help="Threads for VAL (1 == safest)"
+    )
 
     # per-provider caps (defaults favor higher local throughput)
     ap.add_argument("--openai-par", type=int, default=8)
@@ -289,7 +311,12 @@ def main():
     start = int(args.start)
     if args.end is None:
         probs_dir = Path("examples") / args.domain / "problems_pddl"
-        ids = sorted([int(re.search(r"(\d+)", p.stem).group(1)) for p in probs_dir.glob("problem*.pddl")])
+        ids = sorted(
+            [
+                int(re.search(r"(\d+)", p.stem).group(1))
+                for p in probs_dir.glob("problem*.pddl")
+            ]
+        )
         end = ids[-1] if ids else start
     else:
         end = int(args.end)
@@ -300,12 +327,14 @@ def main():
     batch_root.mkdir(parents=True, exist_ok=True)
 
     # build jobs
-    jobs: List[Job] = []
-    counts_by_tech: Dict[str, int] = {t: 0 for t in selected_techs}
+    jobs: list[Job] = []
+    counts_by_tech: dict[str, int] = {t: 0 for t in selected_techs}
     for idx in range(start, end + 1):
         auto = _resolve_paths(args.domain, idx)
         if not auto["domain"] or not auto["problem"]:
-            console.print(f"[yellow][SKIP][/yellow] Could not resolve paths for p{idx:02d}")
+            console.print(
+                f"[yellow][SKIP][/yellow] Could not resolve paths for p{idx:02d}"
+            )
             continue
         prompt_text = (auto["prompt_text"] or "").strip()
         for model_id, mcfg in MODELS.items():
@@ -346,11 +375,18 @@ def main():
         "openai_compat": max(0, args.local_par),
     }
     semaphores = {
-        p: threading.BoundedSemaphore(c if c > 0 else 9999) for p, c in prov_caps.items()
+        p: threading.BoundedSemaphore(c if c > 0 else 9999)
+        for p, c in prov_caps.items()
     }
 
     # inflight counters for status line
-    inflight = {"total": 0, "openai": 0, "anthropic": 0, "google": 0, "openai_compat": 0}
+    inflight = {
+        "total": 0,
+        "openai": 0,
+        "anthropic": 0,
+        "google": 0,
+        "openai_compat": 0,
+    }
     inflight_lock = threading.Lock()
 
     progress_cols = [
@@ -363,13 +399,15 @@ def main():
         TimeRemainingColumn(),
     ]
 
-    # Strategy settings (speed knobs for heavy techniques, harmless if unused by your strategy)
-    strategy_settings: Dict[str, Any] = {}
+    strategy_settings: dict[str, Any] = {}
     if "cot_sc" in selected_techs:
-        strategy_settings.setdefault("cot_sc", {})["samples"] = 3  # reduce self-consistency samples
+        strategy_settings.setdefault("cot_sc", {})["samples"] = (
+            3  # reduce self-consistency samples
+        )
 
     console.print(
-        f"[green]Phase 1:[/green] Generating plans (LLM) with {max(1, args.llm_workers)} workers"
+        "[green]Phase 1:[/green] Generating plans (LLM) "
+        "with {max(1, args.llm_workers)} workers"
     )
     with Progress(*progress_cols, console=console) as progress:
         # high-level tasks
@@ -377,13 +415,15 @@ def main():
         t_llm_done = progress.add_task("Finished (LLM)", total=total_jobs)
         # per-technique tasks
         t_by_tech = {
-            tech: progress.add_task(f"{tech} (LLM done)", total=counts_by_tech.get(tech, 0))
+            tech: progress.add_task(
+                f"{tech} (LLM done)", total=counts_by_tech.get(tech, 0)
+            )
             for tech in selected_techs
         }
         # status line for inflight
         t_status = progress.add_task(_fmt_inflight(inflight), total=1, completed=0)
 
-        llm_done: List[Job] = []
+        llm_done: list[Job] = []
         # submit all jobs to pool; update "Queued (LLM)" as we submit
         with ThreadPoolExecutor(max_workers=max(1, args.llm_workers)) as pool:
             future_map = {}
@@ -410,16 +450,19 @@ def main():
                 progress.update(t_by_tech[j.technique], advance=1)
 
     console.print(
-        f"[green]Phase 2:[/green] Validating plans (VAL) with {max(1, args.val_workers)} worker(s)"
+        "[green]Phase 2:[/green] Validating plans (VAL) with "
+        "{max(1, args.val_workers)} worker(s)"
     )
     with Progress(*progress_cols, console=console) as progress:
         t_val_done = progress.add_task("Finished (VAL)", total=len(jobs))
         t_val_by_tech = {
-            tech: progress.add_task(f"{tech} (VAL done)", total=counts_by_tech.get(tech, 0))
+            tech: progress.add_task(
+                f"{tech} (VAL done)", total=counts_by_tech.get(tech, 0)
+            )
             for tech in selected_techs
         }
 
-        results: List[Tuple[Job, Dict[str, Any]]] = []
+        results: list[tuple[Job, dict[str, Any]]] = []
         if max(1, args.val_workers) == 1:
             for job in llm_done:
                 rec = _val_validate(job, val_path=args.val_path)
@@ -429,7 +472,8 @@ def main():
         else:
             with ThreadPoolExecutor(max_workers=max(1, args.val_workers)) as pool:
                 future_map = {
-                    pool.submit(_val_validate, job, val_path=args.val_path): job for job in llm_done
+                    pool.submit(_val_validate, job, val_path=args.val_path): job
+                    for job in llm_done
                 }
                 for fut in as_completed(future_map):
                     job = future_map[fut]
@@ -576,7 +620,9 @@ def main():
                     artifact_path=f"{dataset_name}/p{job.index:02d}/{job.model_id}/{job.technique}",
                 )
 
-    console.print(f"\n[bold green]OK[/bold green] • Wrote:\n- {csv_path}\n- {jsonl_path}")
+    console.print(
+        f"\n[bold green]OK[/bold green] • Wrote:\n- {csv_path}\n- {jsonl_path}"
+    )
     console.print(f"[dim]Batch root: {batch_root}[/dim]")
 
 
