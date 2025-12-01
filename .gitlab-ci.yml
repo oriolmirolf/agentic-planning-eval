@@ -21,4 +21,4 @@ lint-check:
 unit-tests:
   stage: test
   script:
-    - uv run pytest tests/ -v
+    - uv run pytest tests/ -v -m "not local_llm"

@@ -159,7 +159,7 @@ def run_val(
     plan_text: str,
     *,
     val_path: str | None = None,
-    flags: tuple[str, ...] = ("-v", "-e"),
+    flags: tuple[str, ...] = ("-v",),
     retries: int = 5,  # NEW: up to 5 attempts
     retry_backoff: float = 0.4,  # seconds, linear backoff per attempt
 ) -> ValResult:

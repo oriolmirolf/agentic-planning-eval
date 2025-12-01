@@ -4,73 +4,102 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from green_agent.config import EvalConfig
-from green_agent.runner import evaluate_once
+from green_agent.runner import evaluate_once, load_text
+
+
+def test_load_text_file_exists(tmp_path):
+    p = tmp_path / "test.txt"
+    p.write_text("content", encoding="utf-8")
+    assert load_text(str(p)) == "content"
+
+
+def test_load_text_missing_returns_empty():
+    # Should not crash, just return empty string per current implementation
+    # or raise FileNotFoundError depending on implementation.
+    # Current implementation: `with open(path)` -> raises FileNotFoundError
+    with pytest.raises(FileNotFoundError):
+        load_text("nonexistent_file.txt")
+
+
+def test_load_text_none():
+    assert load_text(None) == ""
 
 
 @pytest.fixture
 def mock_purple_agent():
     agent = MagicMock()
-    # Mock the LLM returning a plan string
-    agent.generate_plan.return_value = "(mock-action)"
+    # Mock returning a code-blocked plan
+    agent.generate_plan.return_value = "```pddl\n(move a b)\n```"
     return agent
 
 
-def test_evaluate_once_flow(tmp_path, mock_purple_agent):
+def test_evaluate_once_integration(tmp_path, mock_purple_agent):
     """
-    Full flow test mocking out:
-    1. Purple Agent (LLM)
-    2. Compute Metrics (VAL)
+    Test the full integration of evaluate_once, ensuring:
+    1. Purple agent is called
+    2. Plan is extracted and saved
+    3. VAL metrics are computed and saved
+    4. Score is calculated
     """
+    run_dir = tmp_path / "run_test"
 
-    # 1. Setup Config
     cfg = EvalConfig(
         domain_path="domain.pddl",
         problem_path="problem.pddl",
-        out_dir=str(tmp_path),
+        out_dir=str(tmp_path),  # runner will create subdir unless run_dir is set
+        run_dir=str(run_dir),  # Explicit run dir
         purple_kind="mock",
-        prompt_text="Solve this.",
+        prompt_text="Solve.",
         optimal_cost=10.0,
+        print_card=False,  # Don't clutter test output
     )
 
-    # 2. Mock metrics result
-    mock_metrics_obj = MagicMock()
-    mock_metrics_obj.valid = True
-    mock_metrics_obj.cost_value = 12.0
-    mock_metrics_obj.length = 5
-    mock_metrics_obj.steps = []
-    # These attributes are required for the report
-    mock_metrics_obj.first_failure_at = None
-    mock_metrics_obj.first_failed_action = None
-    mock_metrics_obj.first_failure_reason = None
-    mock_metrics_obj.first_failure_detail = None
-    mock_metrics_obj.unsat_count = 0
-    mock_metrics_obj.redundant_indices = []
-    mock_metrics_obj.advice_count = 0
-    mock_metrics_obj.advice_top_predicates = []
-    mock_metrics_obj.val_stdout = ""
-    mock_metrics_obj.val_stderr = ""
-    mock_metrics_obj.failure_reason = None
-    mock_metrics_obj.val_attempts = 1
-    mock_metrics_obj.val_warning = None
+    # Mock the metrics return object
+    mock_metrics = MagicMock()
+    mock_metrics.valid = True
+    mock_metrics.cost_value = 20.0
+    mock_metrics.steps = []
+    mock_metrics.val_stdout = "VAL OK"
+    mock_metrics.val_stderr = ""
+    # Add all required fields to avoid AttributeErrors
+    for field in [
+        "length",
+        "first_failure_at",
+        "first_failed_action",
+        "first_failure_reason",
+        "first_failure_detail",
+        "unsat_count",
+        "redundant_indices",
+        "advice_count",
+        "advice_top_predicates",
+        "failure_reason",
+        "val_attempts",
+        "val_warning",
+    ]:
+        setattr(mock_metrics, field, None)
+    mock_metrics.length = 5
+    mock_metrics.unsat_count = 0
+    mock_metrics.advice_count = 0
+    mock_metrics.val_attempts = 1
 
-    # 3. Patch dependencies
-    with (
-        patch("green_agent.runner.build_purple", return_value=mock_purple_agent),
-        patch("green_agent.runner.compute_metrics", return_value=mock_metrics_obj),
-    ):
-        record = evaluate_once(cfg)
+    with patch("green_agent.runner.build_purple", return_value=mock_purple_agent):
+        with patch("green_agent.runner.compute_metrics", return_value=mock_metrics):
+            record = evaluate_once(cfg)
 
-    # 4. Assertions
+    # 1. Verify Purple Agent Interaction
+    mock_purple_agent.generate_plan.assert_called_once_with(problem_nl="Solve.")
+
+    # 2. Verify File Artifacts
+    assert (run_dir / "purple_raw.txt").exists()
+    assert (run_dir / "purple_raw.txt").read_text(
+        encoding="utf-8"
+    ) == "```pddl\n(move a b)\n```"
+
+    assert (run_dir / "purple.plan").exists()
+    # The extracted plan should be clean
+    assert (run_dir / "purple.plan").read_text(encoding="utf-8").strip() == "(move a b)"
+
+    # 3. Verify Scoring
+    # Optimal 10 / Cost 20 = 0.5
+    assert record["score"] == 0.5
     assert record["valid"] is True
-    assert record["cost_value"] == 12.0
-    # Score = optimal / cost = 10 / 12 = 0.833...
-    assert record["score"] == pytest.approx(0.833, 0.01)
-
-    # Ensure files were "written" (runner writes to files)
-    # Since we passed tmp_path as run_dir, runner creates a subdirectory.
-    # We need to find where it wrote.
-    # Actually, evaluate_once creates a timestamped dir unless run_dir is explicit.
-    # In the test, we didn't set run_dir explicitly in the config above?
-    # Wait, runner.py logic: "run_dir = cfg.run_dir or _make_run_dir..."
-    # Let's verify the artifacts exist in the return dictionary
-    assert "purple.plan" in str(record["norm_plan_path"])

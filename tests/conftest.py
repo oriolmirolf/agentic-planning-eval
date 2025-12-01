@@ -2,6 +2,13 @@
 import pytest
 
 
+def pytest_configure(config):
+    """Register custom markers."""
+    config.addinivalue_line(
+        "markers", "local_llm: mark test as requiring a local LLM server running."
+    )
+
+
 @pytest.fixture
 def val_stdout_success():
     """Simulated STDOUT from VAL for a successful plan."""
