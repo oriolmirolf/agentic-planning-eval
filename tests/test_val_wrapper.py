@@ -9,7 +9,10 @@ from green_agent.val_wrapper import run_val
 # We mock shutil.which so the code thinks 'validate' is installed
 @pytest.fixture(autouse=True)
 def mock_val_binary():
-    with patch("shutil.which", return_value="/usr/bin/validate"):
+    with (
+        patch("shutil.which", return_value="/fake/path/to/validate"),
+        patch("os.path.exists", return_value=True),
+    ):
         yield
 
 
