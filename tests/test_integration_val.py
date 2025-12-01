@@ -12,6 +12,7 @@ pytestmark = pytest.mark.integration
 
 load_dotenv()
 
+
 def resolve_val_binary():
     env_path = os.getenv("VAL_PATH")
     if env_path and os.path.exists(env_path):
