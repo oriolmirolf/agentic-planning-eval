@@ -51,7 +51,8 @@ def _resolve_paths(domain: str | None, index: int | None) -> dict[str, str | Non
             data = json.load(f)
         domain_prompt = (data.get("domain_prompt") or "").strip()
         pid = f"p{int(index):02d}"
-        entry = next( (p for p in data.get("problems", []) if str(p.get("id")) == pid), None
+        entry = next(
+            (p for p in data.get("problems", []) if str(p.get("id")) == pid), None
         )
         if entry:
             prompt_text = (
