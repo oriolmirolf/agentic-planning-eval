@@ -1,0 +1,38 @@
+(define (problem loadbalance-p03)
+  (:domain loadbalance)
+
+  (:objects
+    ap_south - region
+    analytics search - service
+    s1_ap - server
+    b1 b2 - bucket
+  )
+
+  (:init
+    (server-region s1_ap ap_south)
+
+    (bucket-region b1 ap_south)
+    (bucket-region b2 ap_south)
+
+    (bucket-service b1 analytics)
+    (bucket-service b2 search)
+
+    (online s1_ap)
+
+    ;; Initially only search is running
+    (runs s1_ap search)
+
+    (unassigned b1)
+    (unassigned b2)
+
+    (= (capacity s1_ap) 3)
+    (= (load s1_ap) 0)
+  )
+
+  (:goal
+    (and
+      (assigned-to b1 s1_ap)
+      (assigned-to b2 s1_ap)
+    )
+  )
+)
