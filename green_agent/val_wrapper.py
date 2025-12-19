@@ -40,7 +40,7 @@ _GOAL_NOT_SAT_RE = re.compile(r"Goal not satisfied", re.IGNORECASE)
 
 _ACTION_LINE_RE = re.compile(r"^\s*\(([^()]+)\)\s*$")  # "(move-small ...)"
 
-# --- UPDATED REGEX: Matches "1:" OR "1: (action)" ---
+# Matches "1:" OR "1: (action ...)"
 _PLAN_STEP_RE = re.compile(r"^\s*(\d+)\s*:\s*(.*)$")
 _ACTION_INNER_RE = re.compile(r"\(([^()]+)\)")
 
@@ -73,12 +73,9 @@ class ValResult:
     unsatisfied: list[Unsat] = field(default_factory=list)
     failure_reason: str | None = None
     plan_size: int | None = None
-    plan_actions: dict[int, str] = field(
-        default_factory=dict
-    )  # index -> "(action ...)"
+    plan_actions: dict[int, str] = field(default_factory=dict)  # index->"(action ...)"
     steps: list[TraceStep] = field(default_factory=list)  # per happening
     last_executed_step: int | None = None
-    # NEW: retry diagnostics
     attempts: int = 1
     warning: str | None = None
 
@@ -86,11 +83,6 @@ class ValResult:
 def _parse_plan_listing(lines: list[str]) -> dict[int, str]:
     """
     Parse the 'Plan to validate' listing into {index: action}.
-    Handles both:
-      1: (move a b)
-    And:
-      1:
-      (move a b)
     """
     plan: dict[int, str] = {}
     i = 0
@@ -122,14 +114,12 @@ def _parse_plan_listing(lines: list[str]) -> dict[int, str]:
                     if _PLAN_STEP_RE.match(next_ln):
                         break
 
-                    # Check if this line is an action
                     m_act = _ACTION_INNER_RE.search(next_ln)
                     if m_act:
                         action_found = f"({m_act.group(1).strip()})"
-                        i = j  # Advance main loop past the action line
+                        i = j
                         break
 
-                    # If it's not empty and not an action, keep looking (garbage text)
                     j += 1
 
             if action_found:
@@ -140,7 +130,6 @@ def _parse_plan_listing(lines: list[str]) -> dict[int, str]:
 
 
 def _has_verdict(out: str) -> bool:
-    """Heuristic: did VAL produce enough output to decide success/failure?"""
     if not (out or "").strip():
         return False
     return bool(
@@ -160,12 +149,12 @@ def run_val(
     *,
     val_path: str | None = None,
     flags: tuple[str, ...] = ("-v",),
-    retries: int = 5,  # NEW: up to 5 attempts
-    retry_backoff: float = 0.4,  # seconds, linear backoff per attempt
+    retries: int = 5,
+    retry_backoff: float = 0.4,
 ) -> ValResult:
     """
     Invoke VAL. If it appears to produce no output or no recognizable verdict,
-    retry up to `retries` times with a short backoff. Returns the best/last parse.
+    retry up to `retries` times with a short backoff.
     """
     bin_path = guess_val_binary(val_path)
     if not bin_path:
@@ -190,32 +179,28 @@ def run_val(
 
             if _has_verdict(out) or attempts >= max(1, retries):
                 if not _has_verdict(out):
-                    warning = "VAL produced no recognizable output "
-                    "after {attempts} attempt(s)."
-                    print(f"Warning: {warning}")
-                    print(f"Error: STDERR:\n{err}")
+                    warning = "VAL produced no recognizable output after "
+                    f"{attempts} attempt(s)."
+                    if err.strip():
+                        warning += f" STDERR: {err.strip()}"
                 break
 
-            # brief backoff before retry
             time.sleep(retry_backoff * attempts)
 
-        # ---- parse result (same as before) ----
         ok = bool(_SUCCESS_RE.search(out)) and not _FAILED_RE.search(out)
 
-        # numeric value (if any)
         value = None
         mval = _VALUE_RE.search(out)
         if mval:
             try:
                 value = float(mval.group(1))
             except ValueError:
-                pass
+                value = None
 
         lines = out.splitlines()
         plan_actions = _parse_plan_listing(lines)
         plan_size = max(plan_actions.keys(), default=0) or None
 
-        # trace parsing
         steps: list[TraceStep] = []
         current: TraceStep | None = None
         current_step_idx: int | None = None
@@ -229,19 +214,18 @@ def run_val(
 
             mtime = _TIME_RE.search(line)
             if mtime:
-                # close previous step
                 if current:
                     steps.append(current)
                 current_step_idx = int(mtime.group(1))
                 current = TraceStep(
                     time=current_step_idx, action=plan_actions.get(current_step_idx)
                 )
-                # If there was no failure note yet, we consider this step "executed"
-                # at least up to check.
                 last_executed_step = current_step_idx
 
             elif _UNSAT_RE.search(line) or _UNSAT_LINE_RE.search(line):
-                # Capture failure at this step
+                # -------------------------------------------------------------
+                #  IMPROVED ERROR PARSING LOGIC START
+                # -------------------------------------------------------------
                 idx = None
                 mact = _FAILED_AT_STEP_RE.search(line)
                 if mact:
@@ -249,28 +233,66 @@ def run_val(
                         idx = int(mact.group(1))
                     except ValueError:
                         idx = None
-                # If not present, fall back to current step index
                 if idx is None:
                     idx = current_step_idx
 
-                # Next non-empty line may have the action
-                detail_action = ""
+                # Lookahead for details. VAL often prints:
+                # (pick-up a)
+                # (Follow each of:
+                #   (handempty)
+                # )
+                detail_parts = []
                 j = i + 1
-                while j < len(lines) and not lines[j].strip():
+                max_peek = 8  # read up to 8 lines to find the atom
+                scan_count = 0
+
+                while j < len(lines) and scan_count < max_peek:
+                    ln = lines[j].strip()
+                    if not ln:
+                        j += 1
+                        continue
+
+                    # Stop if we hit a new section
+                    if (_TIME_RE.search(ln) or
+                        _UNSAT_RE.search(ln) or
+                        _UNSAT_LINE_RE.search(ln)):
+                        break
+
+                    # We look for sexpr-like lines e.g. "(handempty)"
+                    # We skip the "Follow each of" wrapper text
+                    lower_ln = ln.lower()
+                    if lower_ln.startswith("(") and "follow each of" not in lower_ln:
+                         if lower_ln != ")": # skip closing paren
+                             detail_parts.append(ln)
+
                     j += 1
-                if j < len(lines):
-                    mm = _ACTION_LINE_RE.match(lines[j])
-                    if mm:
-                        detail_action = "(" + mm.group(1).strip() + ")"
-                    else:
+                    scan_count += 1
+
+                if detail_parts:
+                    detail_action = "; ".join(detail_parts)
+                else:
+                    # Fallback to just grabbing the immediate next line if nothing parsd
+                    j = i + 1
+                    while j < len(lines) and not lines[j].strip():
+                        j += 1
+                    if j < len(lines):
                         detail_action = lines[j].strip()
+                    else:
+                        detail_action = "Unknown unsatisfied condition"
 
                 unsatisfied.append(Unsat(at_action_index=idx, detail=detail_action))
+
                 if current:
                     current.failed = True
                     current.failure_detail = "unsatisfied_precondition"
-                    if not current.action and detail_action:
-                        current.action = detail_action
+                    # Try to backfill the action name if we caught it in details
+                    if not current.action and detail_action and detail_action.startswith("("):
+                        # Use the first part as the action name guess
+                        current.action = detail_action.split(";")[0]
+
+                # -------------------------------------------------------------
+                #  IMPROVED ERROR PARSING LOGIC END
+                # -------------------------------------------------------------
 
             else:
                 madd = _ADDING_RE.match(line)
@@ -285,7 +307,6 @@ def run_val(
         if current:
             steps.append(current)
 
-        # failure reason
         failure_reason: str | None = None
         if not ok:
             if not _has_verdict(out):

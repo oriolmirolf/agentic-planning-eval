@@ -27,6 +27,7 @@ from purple_agent.react_dspy.react_agent import ReActDSPyPurpleAgent
 from .config import EvalConfig
 from .metrics import compute_metrics
 from .plan_parser import extract_plan
+from .tools_backend import compile_nl_plan
 
 console = Console()
 
@@ -100,12 +101,9 @@ def _score_from(metrics, optimal_cost: float | None) -> float | None:
 
 
 def evaluate_once(cfg: EvalConfig) -> dict[str, Any]:
-    # Respect explicit run_dir (used by whole-domain batch);
-    # otherwise create a new stamped folder.
     run_dir = cfg.run_dir or _make_run_dir(cfg.out_dir, cfg.domain_path)
     Path(run_dir).mkdir(parents=True, exist_ok=True)
 
-    # Prefer inline prompt_text (new flow). Fallback to legacy prompt_path.
     problem_nl = (cfg.prompt_text or load_text(cfg.prompt_path) or "").strip()
 
     purple = build_purple(
@@ -126,8 +124,15 @@ def evaluate_once(cfg: EvalConfig) -> dict[str, Any]:
     with open(raw_path, "w", encoding="utf-8") as f:
         f.write(plan_raw)
 
+    # Prefer PDDL extraction; fallback to NL Action-ID compilation
     extracted = extract_plan(plan_raw)
     plan_txt = extracted.to_val_plan_text()
+    if not plan_txt.strip():
+        domain_name = Path(cfg.domain_path).parent.name
+        plan_txt, errors = compile_nl_plan(domain_name, plan_raw)
+        if errors:
+            plan_txt = ""
+
     plan_path = os.path.join(run_dir, "purple.plan")
     with open(plan_path, "w", encoding="utf-8") as f:
         f.write(plan_txt)
@@ -142,7 +147,6 @@ def evaluate_once(cfg: EvalConfig) -> dict[str, Any]:
         check_redundancy=cfg.check_redundancy,
     )
 
-    # Persist logs and structured trace
     val_stdout_path = os.path.join(run_dir, "val_stdout.txt")
     val_stderr_path = os.path.join(run_dir, "val_stderr.txt")
     with open(val_stdout_path, "w", encoding="utf-8", errors="replace") as f:
@@ -169,7 +173,6 @@ def evaluate_once(cfg: EvalConfig) -> dict[str, Any]:
             indent=2,
         )
 
-    # Rich table (conditionally printed)
     if cfg.print_card:
         table = Table(title="Green Agent — Plan Evaluation")
         table.add_column("Metric")
@@ -230,31 +233,15 @@ def evaluate_once(cfg: EvalConfig) -> dict[str, Any]:
     return record
 
 
-# ---------------- Whole-domain evaluation with parallel LLM ----------------
 def evaluate_domain(
     cfg_base: EvalConfig,
     *,
     start: int | None = None,
     end: int | None = None,
     print_cards: bool = False,
-    llm_workers: int = 4,  # parallelize LLM calls
-    val_workers: int = 1,  # default: serialize VAL (avoid stampede)
+    llm_workers: int = 4,
+    val_workers: int = 1,
 ) -> dict[str, Any]:
-    """
-    Two-phase pipeline:
-      1) Parallel: generate plans with the LLM / purple agent (llm_workers threads).
-      2) Then validate plans (VAL). Default sequential (val_workers=1).
-         You can increase val_workers if you want some parallelism here too.
-
-    Layout:
-      <out>/<domain>-<stamp>/
-        domain_summary.json
-        results.jsonl
-        scores.csv
-        p01/  (raw+plan+val logs per problem)
-        p02/
-        ...
-    """
     domain_dir = Path(cfg_base.domain_path).parent
     problems_dir = domain_dir / "problems_pddl"
     with open(domain_dir / "prompts.json", encoding="utf-8") as f:
@@ -262,7 +249,6 @@ def evaluate_domain(
     domain_prompt = (data.get("domain_prompt") or "").strip()
     problems = data.get("problems", [])
 
-    # filter problems by range
     items: list[dict] = []
     for item in problems:
         pid = str(item.get("id", "")).strip()
@@ -276,14 +262,11 @@ def evaluate_domain(
             continue
         items.append({"pid": pid, "idx": idx, "entry": item})
 
-    # Create main (batch) run folder
     stamp = time.strftime("%Y%m%d-%H%M%S")
     batch_root = Path(cfg_base.out_dir) / f"{domain_dir.name}-{stamp}"
     batch_root.mkdir(parents=True, exist_ok=True)
 
-    # ---------- Phase 1: parallel LLM plan generation ----------
     def _gen_job(job: dict) -> dict[str, Any]:
-        """Generate plan for a single problem and write purple_raw.txt / purple.plan."""
         pid = job["pid"]
         idx = job["idx"]
         entry = job["entry"]
@@ -296,27 +279,27 @@ def evaluate_domain(
         ).strip()
         oc = entry.get("optimal_cost")
 
-        # Build a per-problem config just for the purple generation (no VAL yet)
         cfg = EvalConfig(
             domain_path=cfg_base.domain_path,
             problem_path=str(problem_pddl),
-            out_dir=str(batch_root),  # not used since run_dir is set
-            run_dir=str(prob_dir),  # write artifacts in pXX/
-            val_path=cfg_base.val_path,  # passed later
-            val_flags=cfg_base.val_flags,  # passed later
-            tolerance=cfg_base.tolerance,  # passed later
+            out_dir=str(batch_root),
+            run_dir=str(prob_dir),
+            val_path=cfg_base.val_path,
+            val_flags=cfg_base.val_flags,
+            tolerance=cfg_base.tolerance,
             purple_kind=cfg_base.purple_kind,
             purple_url=cfg_base.purple_url,
             prompt_text=prompt_text,
             openai_model=cfg_base.openai_model,
-            check_redundancy=False,  # redundancy is a VAL concern; skip here
+            check_redundancy=False,
             llm_base_url=cfg_base.llm_base_url,
             llm_api_key=cfg_base.llm_api_key,
             optimal_cost=oc,
-            print_card=False,  # quiet per-problem in batch by default
+            print_card=False,
+            strategy_name=cfg_base.strategy_name,
+            strategy_params=cfg_base.strategy_params,
         )
 
-        # Generate plan (like evaluate_once but stop before VAL)
         purple = build_purple(
             cfg.purple_kind,
             model=cfg.openai_model,
@@ -328,7 +311,6 @@ def evaluate_domain(
         )
         t0 = time.time()
         plan_raw = purple.generate_plan(problem_nl=cfg.prompt_text or "")
-        # small jitter to avoid lockstep bursts with some providers
         time.sleep(random.uniform(0.05, 0.15))
         t1 = time.time()
 
@@ -338,6 +320,12 @@ def evaluate_domain(
 
         extracted = extract_plan(plan_raw)
         plan_txt = extracted.to_val_plan_text()
+        if not plan_txt.strip():
+            domain_name = Path(cfg.domain_path).parent.name
+            plan_txt, errors = compile_nl_plan(domain_name, plan_raw)
+            if errors:
+                plan_txt = ""
+
         plan_path = os.path.join(cfg.run_dir, "purple.plan")
         with open(plan_path, "w", encoding="utf-8") as f:
             f.write(plan_txt)
@@ -373,7 +361,6 @@ def evaluate_domain(
                 llm_results.append(fut.result())
                 progress.update(t_llm, advance=1)
 
-        # ---------- Phase 2: VAL validation (default sequential) ----------
         def _val_job(r: dict[str, Any]) -> dict[str, Any]:
             run_dir = r["run_dir"]
             plan_path = r["norm_plan_path"]
@@ -390,7 +377,6 @@ def evaluate_domain(
                 check_redundancy=cfg_base.check_redundancy,
             )
 
-            # Persist logs
             val_stdout_path = os.path.join(run_dir, "val_stdout.txt")
             val_stderr_path = os.path.join(run_dir, "val_stderr.txt")
             with open(val_stdout_path, "w", encoding="utf-8", errors="replace") as f:
@@ -444,7 +430,6 @@ def evaluate_domain(
         final_results: list[dict[str, Any]] = []
 
         if max(1, val_workers) == 1:
-            # sequential VAL
             for r in llm_results:
                 final_results.append(_val_job(r))
                 progress.update(t_val, advance=1)
@@ -455,10 +440,8 @@ def evaluate_domain(
                     final_results.append(fut.result())
                     progress.update(t_val, advance=1)
 
-    # ---------- Aggregate & write batch artifacts ----------
     results = []
     for rec in final_results:
-        # Normalize paths relative to the batch root
         for k in (
             "raw_plan_path",
             "norm_plan_path",
@@ -475,15 +458,12 @@ def evaluate_domain(
         rec["problem_id"] = rec["pid"]
         results.append(rec)
 
-    # results.jsonl
     jsonl_path = batch_root / "results.jsonl"
     with open(jsonl_path, "w", encoding="utf-8") as f:
         for r in results:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    # Aggregate numbers
     n = len(results)
-    # New: counts by reason (including "valid")
     counts_by_reason: defaultdict[str, int] = defaultdict(int)
     for r in results:
         if r.get("valid"):
@@ -491,13 +471,9 @@ def evaluate_domain(
         else:
             reason = r.get("failure_reason") or "unknown_failure"
             counts_by_reason[reason] += 1
-    # Deterministic ordering for JSON/console
     counts_by_reason = dict(sorted(counts_by_reason.items(), key=lambda kv: kv[0]))
 
-    # Score aggregation (unchanged)
-    scores = [
-        r.get("score") for r in results if isinstance(r.get("score"), (int, float))
-    ]
+    scores = [r.get("score") for r in results if isinstance(r.get("score"), (int, float))]
     total_score = sum(scores) if scores else 0.0
 
     summary = {
@@ -507,13 +483,12 @@ def evaluate_domain(
         "count": n,
         "total_score": total_score,
         "scores": {r["problem_id"]: r.get("score") for r in results},
-        "counts_by_reason": counts_by_reason,  # <--- NEW primary aggregate
+        "counts_by_reason": counts_by_reason,
     }
 
     with open(batch_root / "domain_summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
-    # CSV (kept the same columns; reason present per row)
     csv_path = batch_root / "scores.csv"
     with open(csv_path, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
@@ -545,7 +520,6 @@ def evaluate_domain(
                 ]
             )
 
-    # Console summary: show counts_by_reason instead of valid/invalid
     table = Table(title=f"Domain Summary — {domain_dir.name}")
     table.add_column("Metric")
     table.add_column("Value")

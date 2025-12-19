@@ -18,9 +18,7 @@
     (bed-dirty ?b - bed)                        ; bed needs cleaning before use
     (bed-blocked ?b - bed)                      ; bed unavailable (maintenance, reserved)
 
-    (emergency ?p - patient)                    ; triage tags (optional, for scoring)
-    (elective ?p - patient)
-  )
+  ) 
 
   (:functions
     (total-cost)

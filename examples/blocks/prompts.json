@@ -1,63 +1,500 @@
 {
   "domain_prompt": "You are a planning agent in a simplified Blocks World.\n\nObjects & state:\n- Labeled blocks: A, B, C, … (rigid, same size).\n- One robot hand (the hand) that can hold at most one block.\n- A block is always exactly one of: on the table, on top of exactly one other block, or being held.\n- A block is clear iff nothing is on top of it.\n- The table can hold any number of separate stacks.\n- Unless stated otherwise, the hand starts empty.\n\nLegal actions (use these exact action names):\n1) pick-up X — Preconditions: hand is empty; X is on the table; X is clear. Effects: hand holds X; X is no longer on the table; X is not clear; hand is not empty.\n2) put-down X — Preconditions: hand holds X. Effects: X is on the table and clear; hand is empty; hand no longer holds X.\n3) unstack X Y — Preconditions: hand is empty; X is on Y; X is clear. Effects: hand holds X; X is no longer on Y; Y becomes clear; hand is not empty; X is not clear.\n4) stack X Y — Preconditions: hand holds X; Y is clear. Effects: X is on Y; hand is empty; hand no longer holds X; X becomes clear; Y becomes not clear.\n\nInvariants:\n- No block can be in two places at once.\n- A block cannot be both held and on something.\n- Only clear blocks can be moved; only clear blocks can receive another block on top; no cycles.\n\nYOUR JOB: Given an initial arrangement and a goal arrangement, return a valid sequence of actions that achieves the goal.\n\nOUTPUT REQUIREMENTS (IMPORTANT): Return ONLY a fenced code block containing one PDDL-style action per line using exactly these names: (pick-up X), (put-down X), (unstack X Y), (stack X Y). Use exactly the object names provided (e.g., A, B, C). No numbering, no extra commentary. Example format:\n```\n(unstack C B)\n(put-down C)\n(pick-up A)\n(stack A B)\n```",
+  "actions": [
+    {
+      "name": "pick-up",
+      "signature": "pick-up(X)",
+      "parameters": [
+        {
+          "name": "X",
+          "kind": "block"
+        }
+      ],
+      "preconditions": [
+        "The hand is empty.",
+        "Block X is on the table.",
+        "Block X is clear (nothing on top of it)."
+      ],
+      "effects": [
+        "The hand is holding block X.",
+        "Block X is no longer on the table.",
+        "Block X is no longer clear (because it is being held).",
+        "The hand is no longer empty."
+      ],
+      "cost": 1
+    },
+    {
+      "name": "put-down",
+      "signature": "put-down(X)",
+      "parameters": [
+        {
+          "name": "X",
+          "kind": "block"
+        }
+      ],
+      "preconditions": [
+        "The hand is holding block X."
+      ],
+      "effects": [
+        "The hand is empty.",
+        "The hand is no longer holding block X.",
+        "Block X is on the table.",
+        "Block X is clear."
+      ],
+      "cost": 1
+    },
+    {
+      "name": "stack",
+      "signature": "stack(X, Y)",
+      "parameters": [
+        {
+          "name": "X",
+          "kind": "block"
+        },
+        {
+          "name": "Y",
+          "kind": "block"
+        }
+      ],
+      "preconditions": [
+        "The hand is holding block X.",
+        "Block Y is clear (nothing on top of it)."
+      ],
+      "effects": [
+        "The hand is empty.",
+        "The hand is no longer holding block X.",
+        "Block X is on top of block Y.",
+        "Block X is clear.",
+        "Block Y is no longer clear."
+      ],
+      "cost": 1
+    },
+    {
+      "name": "unstack",
+      "signature": "unstack(X, Y)",
+      "parameters": [
+        {
+          "name": "X",
+          "kind": "block"
+        },
+        {
+          "name": "Y",
+          "kind": "block"
+        }
+      ],
+      "preconditions": [
+        "The hand is empty.",
+        "Block X is on top of block Y.",
+        "Block X is clear (nothing on top of it)."
+      ],
+      "effects": [
+        "The hand is holding block X.",
+        "The hand is no longer empty.",
+        "Block X is no longer on top of block Y.",
+        "Block X is no longer clear (because it is being held).",
+        "Block Y becomes clear."
+      ],
+      "cost": 1
+    }
+  ],
   "problems": [
     {
       "id": "p01",
-      "prompt": "Blocks: A, B, C. Initial: A, B, C are each on the table and clear; hand empty. Goal: A on B and B on C (tower top→bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "prompt": "Blocks: A, B, C. Initial: A, B, C are each on the table and clear; hand empty. Goal: A on B and B on C (tower top->bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "overview": {
+        "description": "Rearrange blocks to satisfy the goal stacking configuration.",
+        "initial_state": "A, B, C are each on the table and clear; the hand is empty.",
+        "goal": "A is on B and B is on C (tower top->bottom: A, B, C)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 4,
       "difficulty": "easy"
     },
     {
       "id": "p02",
-      "prompt": "Blocks: A, B, C. Initial: B on A (A on table); C on table. B and C are clear; hand empty. Goal: A on C and B on A (tower top→bottom: B, A, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "prompt": "Blocks: A, B, C. Initial: B on A (A on table); C on table. B and C are clear; hand empty. Goal: A on C and B on A (tower top->bottom: B, A, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "overview": {
+        "description": "Rearrange blocks to satisfy the goal stacking configuration.",
+        "initial_state": "B is on A (A on the table); C is on the table. B and C are clear; the hand is empty.",
+        "goal": "A is on C and B is on A (tower top->bottom: B, A, C)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 6,
       "difficulty": "easy"
     },
     {
       "id": "p03",
-      "prompt": "Blocks: A, B, C. Initial: C on B on A (A on table). C is clear; hand empty. Goal: A on B and B on C (tower top→bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "prompt": "Blocks: A, B, C. Initial: C on B on A (A on table). C is clear; hand empty. Goal: A on B and B on C (tower top->bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "overview": {
+        "description": "Rearrange blocks to satisfy the goal stacking configuration.",
+        "initial_state": "C is on B and B is on A (A on the table). C is clear; the hand is empty.",
+        "goal": "A is on B and B is on C (tower top->bottom: A, B, C)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 6,
       "difficulty": "easy"
     },
     {
       "id": "p04",
-      "prompt": "Blocks: A, B, C, D. Initial: Two towers: A on B (B on table) and D on C (C on table). A and D are clear; hand empty. Goal: Single tower A on B on C on D (top→bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
+      "prompt": "Blocks: A, B, C, D. Initial: Two towers: A on B (B on table) and D on C (C on table). A and D are clear; hand empty. Goal: Single tower A on B on C on D (top->bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
+      "overview": {
+        "description": "Merge two stacks into a single target tower.",
+        "initial_state": "Two towers: A on B (B on the table) and D on C (C on the table). A and D are clear; the hand is empty.",
+        "goal": "A on B on C on D (top->bottom: A, B, C, D)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        },
+        {
+          "name": "D",
+          "kind": "block",
+          "summary": "Block D.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 10,
       "difficulty": "medium"
     },
     {
       "id": "p05",
-      "prompt": "Blocks: A, B, C, D. Initial: D on C on B on A (A on table). D is clear; hand empty. Goal: A on B on C on D (top→bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
+      "prompt": "Blocks: A, B, C, D. Initial: D on C on B on A (A on table). D is clear; hand empty. Goal: A on B on C on D (top->bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
+      "overview": {
+        "description": "Invert a full stack into the opposite ordering.",
+        "initial_state": "D on C on B on A (A on the table). D is clear; the hand is empty.",
+        "goal": "A on B on C on D (top->bottom: A, B, C, D)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        },
+        {
+          "name": "D",
+          "kind": "block",
+          "summary": "Block D.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 8,
       "difficulty": "medium"
     },
     {
       "id": "p06",
-      "prompt": "Blocks: A, B, C, D, E. Initial: A, B, C, D, E are each on the table and clear; hand empty. Goal: E on D on C on B on A (top→bottom: E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "prompt": "Blocks: A, B, C, D, E. Initial: A, B, C, D, E are each on the table and clear; hand empty. Goal: E on D on C on B on A (top->bottom: E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "overview": {
+        "description": "Build a single tall tower from individually separated blocks.",
+        "initial_state": "A, B, C, D, E are each on the table and clear; the hand is empty.",
+        "goal": "E on D on C on B on A (top->bottom: E, D, C, B, A)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        },
+        {
+          "name": "D",
+          "kind": "block",
+          "summary": "Block D.",
+          "attributes": {}
+        },
+        {
+          "name": "E",
+          "kind": "block",
+          "summary": "Block E.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 8,
       "difficulty": "medium"
     },
     {
       "id": "p07",
-      "prompt": "Blocks: A, B, C, D, E. Initial: C on B on A (A on table) and E on D (D on table). C and E are clear; hand empty. Goal: Single tower A on B on C on D on E (top→bottom: A, B, C, D, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "prompt": "Blocks: A, B, C, D, E. Initial: C on B on A (A on table) and E on D (D on table). C and E are clear; hand empty. Goal: Single tower A on B on C on D on E (top->bottom: A, B, C, D, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "overview": {
+        "description": "Merge two existing stacks into one target ordering.",
+        "initial_state": "C on B on A (A on the table) and E on D (D on the table). C and E are clear; the hand is empty.",
+        "goal": "A on B on C on D on E (top->bottom: A, B, C, D, E)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        },
+        {
+          "name": "D",
+          "kind": "block",
+          "summary": "Block D.",
+          "attributes": {}
+        },
+        {
+          "name": "E",
+          "kind": "block",
+          "summary": "Block E.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 10,
       "difficulty": "medium"
     },
     {
       "id": "p08",
-      "prompt": "Blocks: A, B, C, D, E. Initial: Three stacks: B on A (A on table), D on C (C on table), and E alone on the table. B, D, E are clear; hand empty. Goal: Single tower C on D on B on A on E (top→bottom: C, D, B, A, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "prompt": "Blocks: A, B, C, D, E. Initial: Three stacks: B on A (A on table), D on C (C on table), and E alone on the table. B, D, E are clear; hand empty. Goal: Single tower C on D on B on A on E (top->bottom: C, D, B, A, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "overview": {
+        "description": "Combine multiple stacks into one target tower ordering.",
+        "initial_state": "Three stacks: B on A (A on the table), D on C (C on the table), and E alone on the table. B, D, E are clear; the hand is empty.",
+        "goal": "C on D on B on A on E (top->bottom: C, D, B, A, E)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        },
+        {
+          "name": "D",
+          "kind": "block",
+          "summary": "Block D.",
+          "attributes": {}
+        },
+        {
+          "name": "E",
+          "kind": "block",
+          "summary": "Block E.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 16,
       "difficulty": "hard"
     },
     {
       "id": "p09",
-      "prompt": "Blocks: A, B, C, D, E, F. Initial: A, B, C, D, E, F are each on the table and clear; hand empty. Goal: F on E on D on C on B on A (top→bottom: F, E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F exactly; no extra text.",
+      "prompt": "Blocks: A, B, C, D, E, F. Initial: A, B, C, D, E, F are each on the table and clear; hand empty. Goal: F on E on D on C on B on A (top->bottom: F, E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F exactly; no extra text.",
+      "overview": {
+        "description": "Build a single tall tower from individually separated blocks.",
+        "initial_state": "A, B, C, D, E, F are each on the table and clear; the hand is empty.",
+        "goal": "F on E on D on C on B on A (top->bottom: F, E, D, C, B, A)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        },
+        {
+          "name": "D",
+          "kind": "block",
+          "summary": "Block D.",
+          "attributes": {}
+        },
+        {
+          "name": "E",
+          "kind": "block",
+          "summary": "Block E.",
+          "attributes": {}
+        },
+        {
+          "name": "F",
+          "kind": "block",
+          "summary": "Block F.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 10,
       "difficulty": "hard"
     },
     {
       "id": "p10",
-      "prompt": "Blocks: A, B, C, D, E, F, G. Initial: Two towers: C on B on A (A on table) and G on F on E on D (D on table). C and G are clear; hand empty. Goal: Single tower A on B on C on D on E on F on G (top→bottom: A, B, C, D, E, F, G). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F, G exactly; no extra text.",
+      "prompt": "Blocks: A, B, C, D, E, F, G. Initial: Two towers: C on B on A (A on table) and G on F on E on D (D on table). C and G are clear; hand empty. Goal: Single tower A on B on C on D on E on F on G (top->bottom: A, B, C, D, E, F, G). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F, G exactly; no extra text.",
+      "overview": {
+        "description": "Merge two tall stacks into one target tower ordering.",
+        "initial_state": "Two towers: C on B on A (A on the table) and G on F on E on D (D on the table). C and G are clear; the hand is empty.",
+        "goal": "A on B on C on D on E on F on G (top->bottom: A, B, C, D, E, F, G)."
+      },
+      "objects": [
+        {
+          "name": "A",
+          "kind": "block",
+          "summary": "Block A.",
+          "attributes": {}
+        },
+        {
+          "name": "B",
+          "kind": "block",
+          "summary": "Block B.",
+          "attributes": {}
+        },
+        {
+          "name": "C",
+          "kind": "block",
+          "summary": "Block C.",
+          "attributes": {}
+        },
+        {
+          "name": "D",
+          "kind": "block",
+          "summary": "Block D.",
+          "attributes": {}
+        },
+        {
+          "name": "E",
+          "kind": "block",
+          "summary": "Block E.",
+          "attributes": {}
+        },
+        {
+          "name": "F",
+          "kind": "block",
+          "summary": "Block F.",
+          "attributes": {}
+        },
+        {
+          "name": "G",
+          "kind": "block",
+          "summary": "Block G.",
+          "attributes": {}
+        }
+      ],
       "optimal_cost": 14,
       "difficulty": "hard"
     }

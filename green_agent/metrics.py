@@ -31,10 +31,8 @@ class PlanMetrics:
     failure_reason: str | None
 
     first_failed_action: str | None
-    first_failure_reason: (
-        str | None
-    )  # short atom-only summary (e.g., "isoccupied loc3_6")
-    first_failure_detail: str | None  # human-readable full sentence
+    first_failure_reason: str | None
+    first_failure_detail: str | None
 
     # Advice-derived signal
     advice_count: int
@@ -46,7 +44,7 @@ class PlanMetrics:
     # optional trace
     steps: list[TraceStep]
 
-    # NEW: VAL retry diagnostics
+    # VAL retry diagnostics
     val_attempts: int
     val_warning: str | None
 
@@ -115,7 +113,7 @@ def compute_metrics(
     problem: str,
     plan_text: str,
     val_path: str | None = None,
-    flags: tuple[str, ...] = ("-v"),
+    flags: tuple[str, ...] = ("-v",),
     check_redundancy: bool = False,
 ) -> PlanMetrics:
     base = run_val(domain, problem, plan_text, val_path=val_path, flags=flags)
@@ -141,7 +139,6 @@ def compute_metrics(
             idx for idx, ln in enumerate(lines) if ln.strip().startswith("(")
         ]
         for k, remove_idx in enumerate(action_line_idxs):
-            # build variant skipping exactly this action line
             variant = (
                 "\n".join(lines[j] for j in range(len(lines)) if j != remove_idx) + "\n"
             )
@@ -174,21 +171,22 @@ def compute_metrics(
     first_failure_reason = None
     first_failure_detail = None
     if first_fail is not None and advice_by_time.get(first_fail):
-        # short reason: first atom only
         first_atom, _ = advice_by_time[first_fail][0]
         first_failure_reason = first_atom
 
-        # Build human-readable detail. We infer current value as the opp. of desired.
-        # (If VAL says "Set X to false", we assume X was true.)
         def _fmt_pair(pair: tuple[str, bool]) -> str:
             atom, desired = pair
             desired_str = "true" if desired else "false"
             assumed_was = "false" if desired else "true"
             return f"{atom} = {desired_str} (but was {assumed_was})"
 
+        action_txt = first_failed_action or "unknown-action"
+        detail_bits = "; ".join(_fmt_pair(p) for p in advice_by_time[first_fail][:5])
+        if len(advice_by_time[first_fail]) > 5:
+            detail_bits += f"; ... (+{len(advice_by_time[first_fail]) - 5} more)"
         first_failure_detail = (
-            f"Unsatisfied preconditions at step {first_fail} "
-            "for {action_txt}: {detail_bits}."
+            f"Unsatisfied preconditions at step {first_fail} for {action_txt}: "
+            f"{detail_bits}."
         )
 
     return PlanMetrics(
@@ -210,3 +208,4 @@ def compute_metrics(
         val_attempts=base.attempts,
         val_warning=base.warning,
     )
+# ----------------------------------------
