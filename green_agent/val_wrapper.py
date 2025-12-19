@@ -253,17 +253,19 @@ def run_val(
                         continue
 
                     # Stop if we hit a new section
-                    if (_TIME_RE.search(ln) or
-                        _UNSAT_RE.search(ln) or
-                        _UNSAT_LINE_RE.search(ln)):
+                    if (
+                        _TIME_RE.search(ln)
+                        or _UNSAT_RE.search(ln)
+                        or _UNSAT_LINE_RE.search(ln)
+                    ):
                         break
 
                     # We look for sexpr-like lines e.g. "(handempty)"
                     # We skip the "Follow each of" wrapper text
                     lower_ln = ln.lower()
                     if lower_ln.startswith("(") and "follow each of" not in lower_ln:
-                         if lower_ln != ")": # skip closing paren
-                             detail_parts.append(ln)
+                        if lower_ln != ")":  # skip closing paren
+                            detail_parts.append(ln)
 
                     j += 1
                     scan_count += 1
@@ -286,9 +288,11 @@ def run_val(
                     current.failed = True
                     current.failure_detail = "unsatisfied_precondition"
                     # Try to backfill the action name if we caught it in details
-                    if (not current.action
+                    if (
+                        not current.action
                         and detail_action
-                        and detail_action.startswith("(")):
+                        and detail_action.startswith("(")
+                    ):
                         # Use the first part as the action name guess
                         current.action = detail_action.split(";")[0]
 

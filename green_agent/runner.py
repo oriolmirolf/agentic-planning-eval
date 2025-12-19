@@ -474,8 +474,7 @@ def evaluate_domain(
     counts_by_reason = dict(sorted(counts_by_reason.items(), key=lambda kv: kv[0]))
 
     scores = [
-        r.get("score") for r in results
-        if isinstance(r.get("score"), (int, float))
+        r.get("score") for r in results if isinstance(r.get("score"), (int, float))
     ]
     total_score = sum(scores) if scores else 0.0
 

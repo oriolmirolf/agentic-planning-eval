@@ -14,6 +14,7 @@ from .val_wrapper import run_val
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass(slots=True)
 class TaskOverview:
     description: str
@@ -57,6 +58,7 @@ class ProblemSpec:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
 
 def _prompts_path(domain: str) -> Path:
     return Path("examples") / domain / "prompts.json"
@@ -193,6 +195,7 @@ def load_problem_spec(domain: str, index: int) -> ProblemSpec:
 # ---------------------------------------------------------------------------
 # Public tool backends (what you wrap as LLM tools)
 # ---------------------------------------------------------------------------
+
 
 def get_task_overview(domain: str, index: int) -> dict[str, str]:
     spec = load_problem_spec(domain, index)
@@ -377,8 +380,8 @@ def list_objects_nl(domain: str, index: int, kind: str | None = None) -> str:
 def describe_object_nl(domain: str, index: int, name: str) -> str:
     o = describe_object(domain, index, name)
     lines = [
-        f"Name: {o.get('name','')}",
-        f"Type: {o.get('kind','')}",
+        f"Name: {o.get('name', '')}",
+        f"Type: {o.get('kind', '')}",
     ]
     if o.get("summary"):
         lines.append(f"Summary: {o['summary']}")
@@ -659,6 +662,7 @@ def undo_nl(to_step: int) -> str:
     _EP.pddl_steps = _EP.pddl_steps[:k]
     return f"Reverted to step {k}."
 
+
 def _translate_fact(fact: str) -> str:
     inner = fact.strip()
     if inner.startswith("(") and inner.endswith(")"):
@@ -680,6 +684,7 @@ def _translate_fact(fact: str) -> str:
         return f"{args[0]} is {readable_pred} {args[1]}"
 
     return fact
+
 
 def _translate_error(detail_raw: str) -> str:
     """
@@ -725,6 +730,7 @@ def _translate_error(detail_raw: str) -> str:
     # Case 3: Complex Relations (3+ args)
     # Fallback to functional style: "link(a, b, c) should be true"
     return f"The relationship '{readable_pred}' should hold for ({', '.join(args)})."
+
 
 def act_nl(step_text: str) -> str:
     """
@@ -856,7 +862,7 @@ def _parse_problem_init(problem_path: str) -> tuple[set[str], dict[str, float]]:
         m = _INIT_ASSIGN_RE.match(e)
         if m:
             func_inner = m.group(1).strip()
-            func_name = func_inner.split()[0].lower() # Lowercase function names too
+            func_name = func_inner.split()[0].lower()  # Lowercase function names too
             try:
                 funcs[func_name] = float(m.group(2))
             except Exception:
@@ -870,11 +876,11 @@ def _parse_problem_init(problem_path: str) -> tuple[set[str], dict[str, float]]:
 
 def _apply_trace(facts: set[str], adds: list[str], deletes: list[str]) -> None:
     for d in deletes or []:
-        dd = re.sub(r"\s+", " ", (d or "").strip()).lower() # Lowercase
+        dd = re.sub(r"\s+", " ", (d or "").strip()).lower()  # Lowercase
         if dd:
             facts.discard(dd)
     for a in adds or []:
-        aa = re.sub(r"\s+", " ", (a or "").strip()).lower() # Lowercase
+        aa = re.sub(r"\s+", " ", (a or "").strip()).lower()  # Lowercase
         if aa:
             facts.add(aa)
 
@@ -931,6 +937,7 @@ def get_state_nl(max_facts: int = 200) -> str:
         # --- CHANGE END ---
 
     return "\n".join(lines)
+
 
 def submit_episode_nl(*, check_redundancy: bool = False) -> str:
     """
