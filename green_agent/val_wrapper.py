@@ -286,7 +286,9 @@ def run_val(
                     current.failed = True
                     current.failure_detail = "unsatisfied_precondition"
                     # Try to backfill the action name if we caught it in details
-                    if not current.action and detail_action and detail_action.startswith("("):
+                    if (not current.action
+                        and detail_action
+                        and detail_action.startswith("(")):
                         # Use the first part as the action name guess
                         current.action = detail_action.split(";")[0]
 

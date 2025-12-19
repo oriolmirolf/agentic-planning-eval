@@ -665,7 +665,8 @@ def _translate_fact(fact: str) -> str:
         inner = inner[1:-1].strip()
 
     parts = inner.split()
-    if not parts: return fact
+    if not parts:
+        return fact
 
     pred = parts[0].lower()
     readable_pred = pred.replace("-", " ").replace("_", " ")
@@ -697,7 +698,8 @@ def _translate_error(detail_raw: str) -> str:
         txt = txt[1:-1]
 
     parts = txt.split()
-    if not parts: return detail_raw
+    if not parts:
+        return detail_raw
 
     pred = parts[0].lower()
     # Normalize: "on-table" -> "on table", "connected-to" -> "connected to"
@@ -913,8 +915,9 @@ def get_state_nl(max_facts: int = 200) -> str:
         ]
 
     lines: list[str] = []
+    step_count = len(_EP.pddl_steps or [])
     lines.append(
-        f"Episode: domain={_EP.domain}, problem={_EP.index}, steps={len(_EP.pddl_steps or [])}"
+        f"Episode: domain={_EP.domain}, problem={_EP.index}, steps={step_count}"
     )
     if funcs:
         lines.append("Functions:")
