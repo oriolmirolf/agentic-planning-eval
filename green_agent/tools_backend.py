@@ -5,10 +5,119 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from .metrics import compute_metrics
 from .val_wrapper import run_val
+
+# ---------------------------------------------------------------------------
+# DSPy-like tool signatures (NO external dependency)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class SigField:
+    name: str
+    type: str
+    desc: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolSignature:
+    """
+    A small, DSPy-like signature object you can use when registering tools.
+    """
+    name: str
+    inputs: list[SigField]
+    output: SigField
+    doc: str
+
+
+# NOTE: Per request, the submit signature MUST ONLY describe submitting the
+# current episode plan (actions executed so far). It must NOT mention providing text.
+TOOL_SIGNATURES: dict[str, ToolSignature] = {
+    "get_task_overview": ToolSignature(
+        name="get_task_overview",
+        inputs=[
+            SigField("domain", "str", "Domain name under examples/<domain>."),
+            SigField("index", "int", "Problem index (1..N)."),
+        ],
+        output=SigField("overview", "str", "Human-readable task description, init, and goal."),
+        doc="Return a natural-language overview for a given domain/problem.",
+    ),
+    "list_objects": ToolSignature(
+        name="list_objects",
+        inputs=[
+            SigField("domain", "str", "Domain name under examples/<domain>."),
+            SigField("index", "int", "Problem index (1..N)."),
+            SigField("kind", "Optional[str]", "Optional type filter (e.g., 'room', 'ball')."),
+        ],
+        output=SigField("objects", "str", "Bullet list of objects with types and summaries."),
+        doc="List objects available in the current problem (optionally filtered by kind).",
+    ),
+    "describe_object": ToolSignature(
+        name="describe_object",
+        inputs=[
+            SigField("domain", "str", "Domain name under examples/<domain>."),
+            SigField("index", "int", "Problem index (1..N)."),
+            SigField("name", "str", "Exact object name to describe."),
+        ],
+        output=SigField("object", "str", "Human-readable object description and attributes."),
+        doc="Describe one object by name for a given problem.",
+    ),
+    "list_action_types": ToolSignature(
+        name="list_action_types",
+        inputs=[SigField("domain", "str", "Domain name under examples/<domain>.")],
+        output=SigField("actions", "str", "Action names, parameters, preconditions, effects."),
+        doc="List action schemas in human-readable form.",
+    ),
+    "describe_action": ToolSignature(
+        name="describe_action",
+        inputs=[
+            SigField("domain", "str", "Domain name under examples/<domain>."),
+            SigField("action_name", "str", "Action name (case-insensitive)."),
+        ],
+        output=SigField("action", "str", "Human-readable action schema for a single action."),
+        doc="Describe one action schema by name.",
+    ),
+    "reset_episode": ToolSignature(
+        name="reset_episode",
+        inputs=[
+            SigField("domain", "str", "Domain name under examples/<domain>."),
+            SigField("index", "int", "Problem index (1..N)."),
+            SigField("val_path", "Optional[str]", "Optional custom VAL binary path."),
+            SigField("tolerance", "float", "Numeric tolerance for VAL checks (default: 1e-3)."),
+        ],
+        output=SigField("status", "str", "Reset confirmation string."),
+        doc="Initialize an interactive episode for a specific domain/problem.",
+    ),
+    "act": ToolSignature(
+        name="act",
+        inputs=[
+            SigField("step_text", "str", "One action step in NL-ish format (one step)."),
+        ],
+        output=SigField("result", "str", "Executed YES/NO and error detail if rejected."),
+        doc="Attempt to append exactly one action step to the current episode.",
+    ),
+    "get_history": ToolSignature(
+        name="get_history",
+        inputs=[],
+        output=SigField("history", "str", "Numbered list of executed actions so far."),
+        doc="Get the current episode action history.",
+    ),
+    "get_state": ToolSignature(
+        name="get_state",
+        inputs=[SigField("max_facts", "int", "Max facts to display (default: 200).")],
+        output=SigField("state", "str", "Human-readable facts/functions reconstructed from VAL trace."),
+        doc="Debug tool: reconstruct and print current world facts from :init + VAL deltas.",
+    ),
+    "submit": ToolSignature(
+        name="submit",
+        inputs=[SigField("check_redundancy", "bool", "If true, compute redundancy diagnostics.")],
+        output=SigField("summary", "str", "Final validation summary for the current episode plan."),
+        doc="Validate the CURRENT episode plan (actions executed so far) as a full plan.",
+    ),
+}
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -67,9 +176,7 @@ def _prompts_path(domain: str) -> Path:
 def _load_prompts(domain: str) -> dict[str, Any]:
     path = _prompts_path(domain)
     if not path.exists():
-        raise FileNotFoundError(
-            f"prompts.json not found for domain '{domain}' at {path}"
-        )
+        raise FileNotFoundError(f"prompts.json not found for domain '{domain}' at {path}")
     with path.open(encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict):
@@ -91,17 +198,13 @@ def _find_problem_entry(data: dict[str, Any], index: int) -> dict[str, Any]:
     raise KeyError(f"No problem with id '{pid}' (index {index}) in prompts.json.")
 
 
-def _make_overview(
-    domain: str, data: dict[str, Any], entry: dict[str, Any]
-) -> TaskOverview:
+def _make_overview(domain: str, data: dict[str, Any], entry: dict[str, Any]) -> TaskOverview:
     domain_prompt = (data.get("domain_prompt") or "").strip()
     overview = entry.get("overview") or {}
 
     desc = (
         overview.get("description")
-        or "\n\n".join(
-            p for p in (domain_prompt, (entry.get("prompt") or "").strip()) if p
-        ).strip()
+        or "\n\n".join(p for p in (domain_prompt, (entry.get("prompt") or "").strip()) if p).strip()
     )
 
     init = (overview.get("initial_state") or entry.get("initial_state") or "").strip()
@@ -166,14 +269,10 @@ def _resolve_pddl_paths(domain: str, index: int) -> tuple[str, str]:
     problems_dir = base / "problems_pddl"
 
     if not domain_pddl.exists():
-        raise FileNotFoundError(
-            f"domain.pddl not found for domain '{domain}' at {domain_pddl}"
-        )
+        raise FileNotFoundError(f"domain.pddl not found for domain '{domain}' at {domain_pddl}")
     problem_pddl = problems_dir / f"problem{int(index)}.pddl"
     if not problem_pddl.exists():
-        raise FileNotFoundError(
-            f"problem{index}.pddl not found for domain '{domain}' at {problem_pddl}"
-        )
+        raise FileNotFoundError(f"problem{index}.pddl not found for domain '{domain}' at {problem_pddl}")
     return str(domain_pddl), str(problem_pddl)
 
 
@@ -183,21 +282,25 @@ def load_problem_spec(domain: str, index: int) -> ProblemSpec:
     overview = _make_overview(domain, data, entry)
     actions = _make_actions(data)
     objects = _make_objects(entry)
-    return ProblemSpec(
-        domain=domain,
-        index=index,
-        overview=overview,
-        objects=objects,
-        actions=actions,
-    )
+    return ProblemSpec(domain=domain, index=index, overview=overview, objects=objects, actions=actions)
 
 
-# ---------------------------------------------------------------------------
-# Public tool backends (what you wrap as LLM tools)
-# ---------------------------------------------------------------------------
+def _get_action_map(domain: str) -> dict[str, ActionSchema]:
+    """Returns a dict {action_name_lower: schema}."""
+    data = _load_prompts(domain)
+    actions = _make_actions(data)
+    return {a.name.lower(): a for a in actions}
 
 
-def get_task_overview(domain: str, index: int) -> dict[str, str]:
+# =============================================================================
+# "JSON-ish" accessors (kept for internal / non-agent usage)
+# =============================================================================
+
+# These are intentionally *not* the primary agent tools; they are useful for UI/debug.
+# The agent should use the human-readable tools below.
+
+
+def get_task_overview_json(domain: str, index: int) -> dict[str, str]:
     spec = load_problem_spec(domain, index)
     return {
         "description": spec.overview.description,
@@ -206,7 +309,7 @@ def get_task_overview(domain: str, index: int) -> dict[str, str]:
     }
 
 
-def list_objects(domain: str, index: int, kind: str | None = None) -> dict[str, Any]:
+def list_objects_json(domain: str, index: int, kind: str | None = None) -> dict[str, Any]:
     spec = load_problem_spec(domain, index)
     objs = spec.objects
     if kind:
@@ -216,28 +319,18 @@ def list_objects(domain: str, index: int, kind: str | None = None) -> dict[str, 
     return {
         "kind": kind or "all",
         "objects": [
-            {
-                "name": o.name,
-                "kind": o.kind,
-                "summary": o.summary,
-                "attributes": o.attributes,
-            }
+            {"name": o.name, "kind": o.kind, "summary": o.summary, "attributes": o.attributes}
             for o in objs
         ],
     }
 
 
-def describe_object(domain: str, index: int, name: str) -> dict[str, Any]:
+def describe_object_json(domain: str, index: int, name: str) -> dict[str, Any]:
     spec = load_problem_spec(domain, index)
     name = str(name).strip()
     for o in spec.objects:
         if o.name == name:
-            return {
-                "name": o.name,
-                "kind": o.kind,
-                "summary": o.summary,
-                "attributes": o.attributes,
-            }
+            return {"name": o.name, "kind": o.kind, "summary": o.summary, "attributes": o.attributes}
     raise KeyError(f"Unknown object '{name}' for domain '{domain}' problem {index}.")
 
 
@@ -259,57 +352,8 @@ def get_action_schemas(domain: str) -> dict[str, Any]:
     }
 
 
-def submit_plan(
-    domain: str,
-    index: int,
-    steps: list[dict[str, Any]],
-    *,
-    val_path: str | None = None,
-    tolerance: float = 0.001,
-    check_redundancy: bool = False,
-) -> dict[str, Any]:
-    domain_path, problem_path = _resolve_pddl_paths(domain, index)
-
-    lines: list[str] = []
-    for s in steps:
-        action = str(s.get("action") or "").strip()
-        if not action:
-            continue
-        args = s.get("args") or []
-        arg_str = " ".join(str(a).strip() for a in args if str(a).strip())
-        lines.append(f"({action} {arg_str})" if arg_str else f"({action})")
-
-    plan_text = "\n".join(lines) + ("\n" if lines else "")
-
-    flags = ("-v", "-t", str(tolerance))
-    metrics = compute_metrics(
-        domain=domain_path,
-        problem=problem_path,
-        plan_text=plan_text,
-        val_path=val_path,
-        flags=flags,
-        check_redundancy=check_redundancy,
-    )
-
-    return {
-        "accepted": bool(metrics.valid),
-        "length": metrics.length,
-        "cost_value": metrics.cost_value,
-        "first_failure_at": metrics.first_failure_at,
-        "first_failed_action": metrics.first_failed_action,
-        "first_failure_reason": metrics.first_failure_reason,
-        "first_failure_detail": metrics.first_failure_detail,
-        "unsat_count": metrics.unsat_count,
-        "redundant_indices": metrics.redundant_indices,
-        "advice_count": metrics.advice_count,
-        "advice_top_predicates": metrics.advice_top_predicates,
-        "val_attempts": getattr(metrics, "val_attempts", 1),
-        "val_warning": getattr(metrics, "val_warning", None),
-    }
-
-
 # =============================================================================
-# NL-only tools + NL plan compilation (PDDL-agnostic to purple)
+# Human-readable tools (agent-facing): same meaning as old *_nl
 # =============================================================================
 
 # Updated regex to match PDDL identifiers (e.g., pick-up, move-block)
@@ -321,6 +365,10 @@ def _norm_key(s: str) -> str:
 
 
 def _strip_code_fences(raw: str) -> str:
+    """
+    Extract the biggest fenced code block if present; otherwise return raw.
+    Useful because many models wrap plans in ```...```.
+    """
     if "```" not in (raw or ""):
         return raw or ""
     parts = (raw or "").split("```")
@@ -338,16 +386,11 @@ def _strip_code_fences(raw: str) -> str:
     return best if best else (raw or "")
 
 
-def _get_action_map(domain: str) -> dict[str, ActionSchema]:
-    """Returns a dict {action_name: schema}."""
-    data = _load_prompts(domain)
-    actions = _make_actions(data)
-    # Case-insensitive map for easier matching
-    return {a.name.lower(): a for a in actions}
-
-
-def get_task_overview_nl(domain: str, index: int) -> str:
-    ov = get_task_overview(domain, index)
+def get_task_overview(domain: str, index: int) -> str:
+    """
+    Agent-facing overview (formerly get_task_overview_nl).
+    """
+    ov = get_task_overview_json(domain, index)
     lines: list[str] = []
     if ov.get("description"):
         lines.append("Task description:")
@@ -363,8 +406,11 @@ def get_task_overview_nl(domain: str, index: int) -> str:
     return "\n".join(lines).strip() or "No overview available."
 
 
-def list_objects_nl(domain: str, index: int, kind: str | None = None) -> str:
-    res = list_objects(domain, index, kind=kind)
+def list_objects(domain: str, index: int, kind: str | None = None) -> str:
+    """
+    Agent-facing object listing (formerly list_objects_nl).
+    """
+    res = list_objects_json(domain, index, kind=kind)
     objs = res.get("objects") or []
     if not objs:
         return "No objects."
@@ -377,12 +423,12 @@ def list_objects_nl(domain: str, index: int, kind: str | None = None) -> str:
     return "\n".join(lines)
 
 
-def describe_object_nl(domain: str, index: int, name: str) -> str:
-    o = describe_object(domain, index, name)
-    lines = [
-        f"Name: {o.get('name', '')}",
-        f"Type: {o.get('kind', '')}",
-    ]
+def describe_object(domain: str, index: int, name: str) -> str:
+    """
+    Agent-facing object description (formerly describe_object_nl).
+    """
+    o = describe_object_json(domain, index, name)
+    lines = [f"Name: {o.get('name', '')}", f"Type: {o.get('kind', '')}"]
     if o.get("summary"):
         lines.append(f"Summary: {o['summary']}")
     attrs = o.get("attributes") or {}
@@ -393,21 +439,20 @@ def describe_object_nl(domain: str, index: int, name: str) -> str:
     return "\n".join(lines).strip()
 
 
-def list_action_types_nl(domain: str) -> str:
+def list_action_types(domain: str) -> str:
+    """
+    Agent-facing action list (formerly list_action_types_nl / list_actions_nl).
+    """
     action_map = _get_action_map(domain)
     if not action_map:
         return "No action types defined for this domain in prompts.json."
 
     lines: list[str] = []
-    # Sort by name for stability
     for name in sorted(action_map.keys()):
         a = action_map[name]
-        # Use actual name instead of A1/A2
         lines.append(f"Action: {a.name}")
         if a.parameters:
-            lines.append(
-                "Parameters (in order): " + ", ".join(p.name for p in a.parameters)
-            )
+            lines.append("Parameters (in order): " + ", ".join(p.name for p in a.parameters))
         else:
             lines.append("Parameters: none")
         if a.preconditions:
@@ -423,19 +468,18 @@ def list_action_types_nl(domain: str) -> str:
 
 
 def describe_action(domain: str, action_name: str) -> str:
+    """
+    Agent-facing single-action schema description.
+    """
     action_map = _get_action_map(domain)
     aname = (action_name or "").strip().lower()
     if aname not in action_map:
-        return (
-            f"Unknown action '{action_name}'. Use list_action_types_nl(domain) to see "
-            "valid names."
-        )
+        return f"Unknown action '{action_name}'. Use list_action_types(domain) to see valid names."
     a = action_map[aname]
+
     lines = [f"Action: {a.name}"]
     if a.parameters:
-        lines.append(
-            "Parameters (in order): " + ", ".join(p.name for p in a.parameters)
-        )
+        lines.append("Parameters (in order): " + ", ".join(p.name for p in a.parameters))
     else:
         lines.append("Parameters: none")
     if a.preconditions:
@@ -449,7 +493,7 @@ def describe_action(domain: str, action_name: str) -> str:
     return "\n".join(lines)
 
 
-def _parse_nl_step(line: str) -> tuple[str, dict[str, str] | list[str]]:
+def _parse_step(line: str) -> tuple[str, dict[str, str] | list[str]]:
     ln = (line or "").strip()
     if not ln:
         raise ValueError("empty step")
@@ -470,7 +514,6 @@ def _parse_nl_step(line: str) -> tuple[str, dict[str, str] | list[str]]:
         after = after[1:-1].strip()
 
     payload = ""
-    # Handle "pick-up with: X=A" or "pick-up: A"
     if "with:" in after.lower():
         payload = re.split(r"with:", after, flags=re.IGNORECASE, maxsplit=1)[1].strip()
     elif after.startswith(":"):
@@ -481,7 +524,7 @@ def _parse_nl_step(line: str) -> tuple[str, dict[str, str] | list[str]]:
     if not payload:
         return act_name, []
 
-    # Check for kwargs style "X=A, Y=B"
+    # kwargs style "X=A, Y=B" or "X: A"
     if "=" in payload or re.search(r"\w+\s*:\s*\S+", payload):
         parts = [p.strip() for p in payload.split(",") if p.strip()]
         out: dict[str, str] = {}
@@ -500,7 +543,11 @@ def _parse_nl_step(line: str) -> tuple[str, dict[str, str] | list[str]]:
     return act_name, [t for t in clean_args.split() if t.strip()]
 
 
-def compile_nl_plan(domain: str, raw: str) -> tuple[str, list[str]]:
+def compile_plan(domain: str, raw: str) -> tuple[str, list[str]]:
+    """
+    Compile NL-ish step lines into PDDL lines using prompts.json action schemas.
+    Returns (plan_text, errors).
+    """
     action_map = _get_action_map(domain)
     text = _strip_code_fences(raw)
     lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
@@ -509,7 +556,7 @@ def compile_nl_plan(domain: str, raw: str) -> tuple[str, list[str]]:
 
     for ln in lines:
         try:
-            act_name, args = _parse_nl_step(ln)
+            act_name, args = _parse_step(ln)
             if act_name not in action_map:
                 raise ValueError(f"Unknown action '{act_name}'")
 
@@ -518,17 +565,13 @@ def compile_nl_plan(domain: str, raw: str) -> tuple[str, list[str]]:
 
             ordered: list[str] = []
             if isinstance(args, dict):
-                # Kwargs mode
                 keymap = {_norm_key(k): v for k, v in args.items()}
                 for pn in param_names:
                     k = _norm_key(pn)
                     if k not in keymap:
-                        raise ValueError(
-                            f"missing parameter '{pn}' for action '{schema.name}'"
-                        )
+                        raise ValueError(f"missing parameter '{pn}' for action '{schema.name}'")
                     ordered.append(str(keymap[k]).strip())
             else:
-                # Positional mode
                 if len(args) != len(param_names):
                     raise ValueError(
                         f"Action '{schema.name}' expects {len(param_names)} args "
@@ -537,9 +580,7 @@ def compile_nl_plan(domain: str, raw: str) -> tuple[str, list[str]]:
                 ordered = [str(x).strip() for x in args]
 
             arg_str = " ".join(ordered)
-            pddl_lines.append(
-                f"({schema.name} {arg_str})" if arg_str else f"({schema.name})"
-            )
+            pddl_lines.append(f"({schema.name} {arg_str})" if arg_str else f"({schema.name})")
         except Exception as e:
             errors.append(f"{ln} -> {e}")
 
@@ -547,57 +588,13 @@ def compile_nl_plan(domain: str, raw: str) -> tuple[str, list[str]]:
     return plan_text, errors
 
 
-def submit_plan_nl(
-    domain: str,
-    index: int,
-    plan_steps_text: str,
-    *,
-    val_path: str | None = None,
-    tolerance: float = 0.001,
-    check_redundancy: bool = False,
-) -> str:
-    domain_path, problem_path = _resolve_pddl_paths(domain, index)
-    plan_text, errors = compile_nl_plan(domain, plan_steps_text)
-    if errors:
-        return "Plan parse failed:\n- " + "\n- ".join(errors)
-    if not plan_text.strip():
-        return "Plan is empty."
-
-    flags = ("-v", "-t", str(tolerance))
-    metrics = compute_metrics(
-        domain=domain_path,
-        problem=problem_path,
-        plan_text=plan_text,
-        val_path=val_path,
-        flags=flags,
-        check_redundancy=check_redundancy,
-    )
-
-    lines = [
-        f"Accepted: {'YES' if metrics.valid else 'NO'}",
-        f"Plan length: {metrics.length}",
-    ]
-    if metrics.cost_value is not None:
-        lines.append(f"Plan cost/value: {metrics.cost_value}")
-    if not metrics.valid:
-        lines.append(f"Failure category: {metrics.failure_reason or 'unknown_failure'}")
-        if metrics.first_failure_at is not None:
-            lines.append(f"First failing step: {metrics.first_failure_at}")
-        if metrics.first_failed_action:
-            lines.append(f"First failed action: {metrics.first_failed_action}")
-        if metrics.first_failure_detail:
-            lines.append(f"Details: {metrics.first_failure_detail}")
-        lines.append(f"Unsatisfied conditions count: {metrics.unsat_count}")
-    return "\n".join(lines)
-
-
 # -------------------------------
-# Stateful NL execution (episode)
+# Stateful execution (episode)
 # -------------------------------
 
 
 @dataclass(slots=True)
-class _NLEpisode:
+class _Episode:
     domain: str | None = None
     index: int | None = None
     domain_path: str | None = None
@@ -606,7 +603,6 @@ class _NLEpisode:
     tolerance: float = 0.001
     pddl_steps: list[str] | None = None
 
-    # Diagnostics for debugging / demos
     last_val_stdout: str | None = None
     last_val_steps: int = 0
 
@@ -614,16 +610,10 @@ class _NLEpisode:
         self.pddl_steps = []
 
 
-_EP = _NLEpisode()
+_EP = _Episode()
 
 
-def reset_episode_nl(
-    domain: str,
-    index: int,
-    *,
-    val_path: str | None = None,
-    tolerance: float = 0.001,
-) -> str:
+def reset_episode(domain: str, index: int, *, val_path: str | None = None, tolerance: float = 0.001) -> str:
     _EP.domain = domain
     _EP.index = int(index)
     _EP.domain_path, _EP.problem_path = _resolve_pddl_paths(domain, index)
@@ -635,17 +625,13 @@ def reset_episode_nl(
     return f"State reset for domain '{domain}', problem {index}. Step counter = 0."
 
 
-def get_history_nl() -> str:
+def get_history() -> str:
     if not _EP.pddl_steps:
         return "No actions executed yet."
     out: list[str] = []
     for i, ln in enumerate(_EP.pddl_steps, start=1):
         inner = ln.strip()
-        inner = (
-            inner[1:-1].strip()
-            if inner.startswith("(") and inner.endswith(")")
-            else inner
-        )
+        inner = inner[1:-1].strip() if inner.startswith("(") and inner.endswith(")") else inner
         toks = inner.split()
         act = toks[0] if toks else "unknown"
         args = toks[1:]
@@ -653,7 +639,7 @@ def get_history_nl() -> str:
     return "\n".join(out).strip()
 
 
-def undo_nl(to_step: int) -> str:
+def undo(to_step: int) -> str:
     k = max(0, int(to_step))
     if not _EP.pddl_steps:
         return "Reverted to step 0."
@@ -682,23 +668,16 @@ def _translate_fact(fact: str) -> str:
         return f"{args[0]} is {readable_pred}"
     if len(args) == 2:
         return f"{args[0]} is {readable_pred} {args[1]}"
-
     return fact
 
 
 def _translate_error(detail_raw: str) -> str:
-    """
-    Translates PDDL/VAL error messages into friendly Natural Language
-    using generic grammatical heuristics for ANY domain.
-    """
     txt = detail_raw.strip()
 
-    # 1. Strip VAL "Set ... to true" wrapper
     m_set = re.search(r"Set\s+(\(.+\))\s+to\s+true", txt, re.IGNORECASE)
     if m_set:
         txt = m_set.group(1)
 
-    # 2. Parse Predicate
     if txt.startswith("(") and txt.endswith(")"):
         txt = txt[1:-1]
 
@@ -707,41 +686,29 @@ def _translate_error(detail_raw: str) -> str:
         return detail_raw
 
     pred = parts[0].lower()
-    # Normalize: "on-table" -> "on table", "connected-to" -> "connected to"
     readable_pred = pred.replace("-", " ").replace("_", " ")
     args = parts[1:]
 
-    # 3. Apply Generic Templates based on Argument Count (Arity)
-
-    # Case 0: Global Flags (e.g., (handempty))
     if len(args) == 0:
         return f"The condition '{readable_pred}' should be met."
-
-    # Case 1: Properties (e.g., (clear a), (free gripper))
     if len(args) == 1:
-        # Output: "a should be clear" or "gripper should be free"
         return f"{args[0]} should be {readable_pred}."
-
-    # Case 2: Relations (e.g., (on a b), (at truck loc), (connected loc1 loc2))
     if len(args) == 2:
-        # Output: "a should be on b" or "truck should be at loc"
         return f"{args[0]} should be {readable_pred} {args[1]}."
-
-    # Case 3: Complex Relations (3+ args)
-    # Fallback to functional style: "link(a, b, c) should be true"
     return f"The relationship '{readable_pred}' should hold for ({', '.join(args)})."
 
 
-def act_nl(step_text: str) -> str:
+def act(step_text: str) -> str:
     """
-    Try to append exactly one action (provided as NL format).
+    Try to append exactly one action (provided as NL-ish format).
     """
     if not (_EP.domain and _EP.domain_path and _EP.problem_path):
-        return "No episode loaded. Call reset_episode_nl(domain, index) first."
+        return "No episode loaded. Call reset_episode(domain, index) first."
 
-    plan_text, errors = compile_nl_plan(_EP.domain, step_text)
+    plan_text, errors = compile_plan(_EP.domain, step_text)
     if errors:
         return "Executed: NO\nReason: " + errors[0]
+
     step_line = plan_text.strip().splitlines()
     if not step_line:
         return "Executed: NO\nReason: could not compile the step."
@@ -761,10 +728,8 @@ def act_nl(step_text: str) -> str:
     if res.unsatisfied:
         u = res.unsatisfied[-1]
         at = u.at_action_index if u.at_action_index is not None else "?"
-
         raw_detail = (u.detail or "").strip()
         friendly_error = _translate_error(raw_detail)
-
         return f"Executed: NO\nAt step: {at}\nDetail: {friendly_error}"
 
     if res.failure_reason == "no_output":
@@ -784,9 +749,7 @@ def act_nl(step_text: str) -> str:
 # -------------------------------
 
 
-_INIT_ASSIGN_RE = re.compile(
-    r"^\(\s*=\s*\(\s*([^)]+)\s*\)\s*([+-]?\d+(?:\.\d+)?)\s*\)\s*$"
-)
+_INIT_ASSIGN_RE = re.compile(r"^\(\s*=\s*\(\s*([^)]+)\s*\)\s*([+-]?\d+(?:\.\d+)?)\s*\)\s*$")
 
 
 def _read_text(path: str) -> str:
@@ -833,11 +796,6 @@ def _split_top_level_sexps(block: str) -> list[str]:
 
 
 def _parse_problem_init(problem_path: str) -> tuple[set[str], dict[str, float]]:
-    """
-    Returns:
-      - facts: set of '(pred arg1 ...)' strings (LOWERCASE ONLY)
-      - functions: {func_name: value}
-    """
     txt = _read_text(problem_path)
     pos = txt.lower().find("(:init")
     if pos < 0:
@@ -862,13 +820,12 @@ def _parse_problem_init(problem_path: str) -> tuple[set[str], dict[str, float]]:
         m = _INIT_ASSIGN_RE.match(e)
         if m:
             func_inner = m.group(1).strip()
-            func_name = func_inner.split()[0].lower()  # Lowercase function names too
+            func_name = func_inner.split()[0].lower()
             try:
                 funcs[func_name] = float(m.group(2))
             except Exception:
                 pass
             continue
-
         facts.add(e.lower())
 
     return facts, funcs
@@ -876,26 +833,24 @@ def _parse_problem_init(problem_path: str) -> tuple[set[str], dict[str, float]]:
 
 def _apply_trace(facts: set[str], adds: list[str], deletes: list[str]) -> None:
     for d in deletes or []:
-        dd = re.sub(r"\s+", " ", (d or "").strip()).lower()  # Lowercase
+        dd = re.sub(r"\s+", " ", (d or "").strip()).lower()
         if dd:
             facts.discard(dd)
     for a in adds or []:
-        aa = re.sub(r"\s+", " ", (a or "").strip()).lower()  # Lowercase
+        aa = re.sub(r"\s+", " ", (a or "").strip()).lower()
         if aa:
             facts.add(aa)
 
 
-def get_state_nl(max_facts: int = 200) -> str:
+def get_state(max_facts: int = 200) -> str:
     """
     Read-only debug: reconstruct current facts from problem :init + VAL trace deltas.
     Re-runs VAL on the current prefix.
     """
     if not (_EP.domain and _EP.domain_path and _EP.problem_path):
-        return "No episode loaded. Call reset_episode_nl(domain, index) first."
+        return "No episode loaded. Call reset_episode(domain, index) first."
 
-    plan_text = "\n".join(_EP.pddl_steps or []) + (
-        "\n" if (_EP.pddl_steps or []) else ""
-    )
+    plan_text = "\n".join(_EP.pddl_steps or []) + ("\n" if (_EP.pddl_steps or []) else "")
     flags = ("-v", "-t", str(_EP.tolerance))
     res = run_val(
         _EP.domain_path,
@@ -906,49 +861,49 @@ def get_state_nl(max_facts: int = 200) -> str:
     )
 
     facts, funcs = _parse_problem_init(_EP.problem_path)
-
     for st in res.steps:
         _apply_trace(facts, st.adds, st.deletes)
 
     if res.value is not None:
         funcs["total-cost"] = float(res.value)
 
-    # Facts are already lowercase now, so sorting is stable
     facts_sorted = sorted(facts)
     if max_facts and len(facts_sorted) > max_facts:
-        facts_sorted = facts_sorted[:max_facts] + [
-            f"... ({len(facts) - max_facts} more facts)"
-        ]
+        facts_sorted = facts_sorted[:max_facts] + [f"... ({len(facts) - max_facts} more facts)"]
 
     lines: list[str] = []
     step_count = len(_EP.pddl_steps or [])
-    lines.append(
-        f"Episode: domain={_EP.domain}, problem={_EP.index}, steps={step_count}"
-    )
+    lines.append(f"Episode: domain={_EP.domain}, problem={_EP.index}, steps={step_count}")
     if funcs:
         lines.append("Functions:")
         for k in sorted(funcs.keys()):
             lines.append(f"- {k} = {funcs[k]}")
-
     lines.append("Facts:")
     for fct in facts_sorted:
-        # --- CHANGE START: Translate the fact ---
         lines.append(f"- {_translate_fact(fct)}")
-        # --- CHANGE END ---
-
     return "\n".join(lines)
 
 
-def submit_episode_nl(*, check_redundancy: bool = False) -> str:
+# =============================================================================
+# ONE submit tool (episode-only)
+# =============================================================================
+
+
+def submit(*, check_redundancy: bool = False) -> str:
     """
-    Validate the current prefix as a full plan (goal satisfaction enforced).
+    Validate the CURRENT episode prefix as a full plan (goal satisfaction enforced).
+
+    IMPORTANT:
+    - This tool does NOT accept an arbitrary plan.
+    - It only validates actions executed so far via act(...).
     """
     if not (_EP.domain and _EP.domain_path and _EP.problem_path):
-        return "No episode loaded. Call reset_episode_nl(domain, index) first."
+        return "No episode loaded. Call reset_episode(domain, index) first."
 
-    plan_text = "\n".join(_EP.pddl_steps or []) + (
-        "\n" if (_EP.pddl_steps or []) else ""
-    )
+    plan_text = "\n".join(_EP.pddl_steps or []) + ("\n" if (_EP.pddl_steps or []) else "")
+    if not plan_text.strip():
+        return "Episode plan is empty."
+
     flags = ("-v", "-t", str(_EP.tolerance))
     metrics = compute_metrics(
         domain=_EP.domain_path,
@@ -975,3 +930,46 @@ def submit_episode_nl(*, check_redundancy: bool = False) -> str:
             lines.append(f"Details: {metrics.first_failure_detail}")
         lines.append(f"Unsatisfied conditions count: {metrics.unsat_count}")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Backwards-compatible aliases (optional, but helps existing code)
+# ---------------------------------------------------------------------------
+
+# Old *_nl names -> new agent-facing names
+get_task_overview_nl = 1
+list_objects_nl = list_objects
+describe_object_nl = describe_object
+list_action_types_nl = list_action_types
+compile_nl_plan = compile_plan
+reset_episode_nl = reset_episode
+act_nl = act
+get_history_nl = get_history
+get_state_nl = get_state
+submit_episode_nl = submit
+
+# Keep undo alias name for older code
+undo_nl = undo
+
+__all__ = [
+    "ToolSignature",
+    "SigField",
+    "TOOL_SIGNATURES",
+    "load_problem_spec",
+    "get_task_overview_json",
+    "list_objects_json",
+    "describe_object_json",
+    "get_action_schemas",
+    "get_task_overview",
+    "list_objects",
+    "describe_object",
+    "list_action_types",
+    "describe_action",
+    "compile_plan",
+    "reset_episode",
+    "act",
+    "undo",
+    "get_history",
+    "get_state",
+    "submit",
+]

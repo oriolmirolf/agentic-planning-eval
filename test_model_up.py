@@ -1,7 +1,7 @@
 from openai import OpenAI
 
 BASE_URL = "http://localhost:5679/v1"
-MODEL = "Qwen3-VL-30B-A3B-Thinking"
+MODEL = "Qwen2.5-72B-Instruct"
 
 client = OpenAI(base_url=BASE_URL, api_key="EMPTY")
 
