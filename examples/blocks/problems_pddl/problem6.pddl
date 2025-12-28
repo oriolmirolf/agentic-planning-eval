@@ -3,7 +3,7 @@
 ;; clear.  The arm is empty.  Goal: stack the blocks to form the tower E on D on
 ;; C on B on A (so E is top and A is bottom).
 
-(define (problem p07)
+(define (problem p06)
   (:domain blocksworld)
   (:objects A B C D E)
   (:init (arm-empty)

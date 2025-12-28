@@ -3,7 +3,7 @@
 ;; block (clear) and the arm is empty.  Goal: reverse the tower so that A is on
 ;; B, B on C and C on D (top to bottom: A, B, C, D).
 
-(define (problem p06)
+(define (problem p05)
   (:domain blocksworld)
   (:objects A B C D)
   (:init (arm-empty)

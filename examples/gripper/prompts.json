@@ -1,0 +1,1031 @@
+{
+  "domain_prompt": "You are a planning agent in a simplified **Gripper** world (a classic IPC planning domain).\n\nScenario:\n- There is one robot that can move between rooms.\n- The robot has **two grippers** (g1 and g2). Each gripper can hold at most one ball.\n- A ball is either in a room or being carried in exactly one gripper.\n\nLegal actions (use these exact action names):\n1) move FROM TO\n   - Preconditions: the robot is in room FROM.\n   - Effects: the robot is now in room TO.\n2) pick BALL ROOM GRIPPER\n   - Preconditions: the robot is in ROOM; BALL is in ROOM; GRIPPER is free.\n   - Effects: BALL is carried in GRIPPER; GRIPPER is no longer free; BALL is no longer in ROOM.\n3) drop BALL ROOM GRIPPER\n   - Preconditions: the robot is in ROOM; BALL is carried in GRIPPER.\n   - Effects: BALL is placed in ROOM; GRIPPER becomes free.\n\nInvariants / reminders:\n- You can only pick up balls in the room where the robot currently is.\n- To transport a ball to another room you must: pick -> move -> drop.\n- You may carry up to two balls at a time (one per gripper).\n- Try to minimize the number of actions.\n\nOUTPUT REQUIREMENTS (IMPORTANT):\nReturn ONLY a fenced code block containing one action per line, in the following machine-readable format:\n- (move FROM TO)\n- (pick BALL ROOM GRIPPER)\n- (drop BALL ROOM GRIPPER)\n\nUse exactly the object names provided in the task (e.g., room1, room2, b1, g1).\nNo numbering, no explanations, no extra text.\n\nExample:\n```\n(pick b1 room1 g1)\n(pick b2 room1 g2)\n(move room1 room2)\n(drop b1 room2 g1)\n(drop b2 room2 g2)\n```",
+  "actions": [
+    {
+      "name": "move",
+      "signature": "move(FROM, TO)",
+      "parameters": [
+        {
+          "name": "FROM",
+          "kind": "room"
+        },
+        {
+          "name": "TO",
+          "kind": "room"
+        }
+      ],
+      "preconditions": [
+        "The robot is in room FROM."
+      ],
+      "effects": [
+        "The robot is no longer in room FROM.",
+        "The robot is now in room TO."
+      ],
+      "cost": 1
+    },
+    {
+      "name": "pick",
+      "signature": "pick(BALL, ROOM, GRIPPER)",
+      "parameters": [
+        {
+          "name": "BALL",
+          "kind": "ball"
+        },
+        {
+          "name": "ROOM",
+          "kind": "room"
+        },
+        {
+          "name": "GRIPPER",
+          "kind": "gripper"
+        }
+      ],
+      "preconditions": [
+        "The robot is in ROOM.",
+        "BALL is in ROOM.",
+        "GRIPPER is free."
+      ],
+      "effects": [
+        "BALL is carried by GRIPPER.",
+        "GRIPPER is no longer free.",
+        "BALL is no longer in ROOM."
+      ],
+      "cost": 1
+    },
+    {
+      "name": "drop",
+      "signature": "drop(BALL, ROOM, GRIPPER)",
+      "parameters": [
+        {
+          "name": "BALL",
+          "kind": "ball"
+        },
+        {
+          "name": "ROOM",
+          "kind": "room"
+        },
+        {
+          "name": "GRIPPER",
+          "kind": "gripper"
+        }
+      ],
+      "preconditions": [
+        "The robot is in ROOM.",
+        "BALL is carried by GRIPPER."
+      ],
+      "effects": [
+        "BALL is placed in ROOM.",
+        "GRIPPER becomes free.",
+        "BALL is no longer carried by GRIPPER."
+      ],
+      "cost": 1
+    }
+  ],
+  "problems": [
+    {
+      "id": "p01",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1.",
+        "goal": "All balls are in room2: b1."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 3,
+      "difficulty": "easy"
+    },
+    {
+      "id": "p02",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2.",
+        "goal": "All balls are in room2: b1, b2."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 5,
+      "difficulty": "easy"
+    },
+    {
+      "id": "p03",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3.",
+        "goal": "All balls are in room2: b1, b2, b3."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b3",
+          "kind": "ball",
+          "summary": "Ball b3.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 9,
+      "difficulty": "easy"
+    },
+    {
+      "id": "p04",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4.",
+        "goal": "All balls are in room2: b1, b2, b3, b4."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b3",
+          "kind": "ball",
+          "summary": "Ball b3.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b4",
+          "kind": "ball",
+          "summary": "Ball b4.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 11,
+      "difficulty": "medium"
+    },
+    {
+      "id": "p05",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5.",
+        "goal": "All balls are in room2: b1, b2, b3, b4, b5."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b3",
+          "kind": "ball",
+          "summary": "Ball b3.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b4",
+          "kind": "ball",
+          "summary": "Ball b4.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b5",
+          "kind": "ball",
+          "summary": "Ball b5.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 15,
+      "difficulty": "medium"
+    },
+    {
+      "id": "p06",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6.",
+        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b3",
+          "kind": "ball",
+          "summary": "Ball b3.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b4",
+          "kind": "ball",
+          "summary": "Ball b4.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b5",
+          "kind": "ball",
+          "summary": "Ball b5.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b6",
+          "kind": "ball",
+          "summary": "Ball b6.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 17,
+      "difficulty": "medium"
+    },
+    {
+      "id": "p07",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6, b7.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6, b7.",
+        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6, b7."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b3",
+          "kind": "ball",
+          "summary": "Ball b3.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b4",
+          "kind": "ball",
+          "summary": "Ball b4.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b5",
+          "kind": "ball",
+          "summary": "Ball b5.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b6",
+          "kind": "ball",
+          "summary": "Ball b6.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b7",
+          "kind": "ball",
+          "summary": "Ball b7.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 21,
+      "difficulty": "medium"
+    },
+    {
+      "id": "p08",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6, b7, b8.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6, b7, b8.",
+        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6, b7, b8."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b3",
+          "kind": "ball",
+          "summary": "Ball b3.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b4",
+          "kind": "ball",
+          "summary": "Ball b4.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b5",
+          "kind": "ball",
+          "summary": "Ball b5.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b6",
+          "kind": "ball",
+          "summary": "Ball b6.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b7",
+          "kind": "ball",
+          "summary": "Ball b7.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b8",
+          "kind": "ball",
+          "summary": "Ball b8.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 23,
+      "difficulty": "hard"
+    },
+    {
+      "id": "p09",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6, b7, b8, b9.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6, b7, b8, b9.",
+        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6, b7, b8, b9."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b3",
+          "kind": "ball",
+          "summary": "Ball b3.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b4",
+          "kind": "ball",
+          "summary": "Ball b4.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b5",
+          "kind": "ball",
+          "summary": "Ball b5.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b6",
+          "kind": "ball",
+          "summary": "Ball b6.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b7",
+          "kind": "ball",
+          "summary": "Ball b7.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b8",
+          "kind": "ball",
+          "summary": "Ball b8.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b9",
+          "kind": "ball",
+          "summary": "Ball b9.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 27,
+      "difficulty": "hard"
+    },
+    {
+      "id": "p10",
+      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6, b7, b8, b9, b10.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "overview": {
+        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
+        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6, b7, b8, b9, b10.",
+        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6, b7, b8, b9, b10."
+      },
+      "objects": [
+        {
+          "name": "room1",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "start"
+          }
+        },
+        {
+          "name": "room2",
+          "kind": "room",
+          "summary": "A room.",
+          "attributes": {
+            "role": "target"
+          }
+        },
+        {
+          "name": "g1",
+          "kind": "gripper",
+          "summary": "Robot gripper 1.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "g2",
+          "kind": "gripper",
+          "summary": "Robot gripper 2.",
+          "attributes": {
+            "capacity_balls": 1
+          }
+        },
+        {
+          "name": "b1",
+          "kind": "ball",
+          "summary": "Ball b1.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b2",
+          "kind": "ball",
+          "summary": "Ball b2.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b3",
+          "kind": "ball",
+          "summary": "Ball b3.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b4",
+          "kind": "ball",
+          "summary": "Ball b4.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b5",
+          "kind": "ball",
+          "summary": "Ball b5.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b6",
+          "kind": "ball",
+          "summary": "Ball b6.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b7",
+          "kind": "ball",
+          "summary": "Ball b7.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b8",
+          "kind": "ball",
+          "summary": "Ball b8.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b9",
+          "kind": "ball",
+          "summary": "Ball b9.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        },
+        {
+          "name": "b10",
+          "kind": "ball",
+          "summary": "Ball b10.",
+          "attributes": {
+            "start_room": "room1",
+            "goal_room": "room2"
+          }
+        }
+      ],
+      "optimal_cost": 29,
+      "difficulty": "hard"
+    }
+  ]
+}

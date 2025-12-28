@@ -6,7 +6,7 @@
 ;; E on F and F on G (so A is top and G is bottom).  This demonstrates a more
 ;; complex seven‑block restructuring.
 
-(define (problem p12)
+(define (problem p10)
   (:domain blocksworld)
   (:objects A B C D E F G)
   (:init (arm-empty)

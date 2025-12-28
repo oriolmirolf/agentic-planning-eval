@@ -5,7 +5,7 @@
 ;; bottom: A, B, C, D, E).  This task is harder than the four‑block problems but
 ;; easier than problem 10 since only two towers must be merged.
 
-(define (problem p09)
+(define (problem p07)
   (:domain blocksworld)
   (:objects A B C D E)
   (:init (arm-empty)

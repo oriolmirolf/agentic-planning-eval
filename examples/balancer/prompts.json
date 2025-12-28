@@ -123,8 +123,8 @@
         { "name": "b2", "kind": "bucket", "summary": "Traffic bucket b2.", "attributes": { "region": "eu_west", "requires_service": "search", "initial_assignment": "s2_eu" } },
         { "name": "b3", "kind": "bucket", "summary": "Traffic bucket b3.", "attributes": { "region": "eu_west", "requires_service": "search", "initial_assignment": "unassigned" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 4,
+      "difficulty": "Easy"
     },
     {
       "id": "p02",
@@ -144,8 +144,8 @@
         { "name": "b2", "kind": "bucket", "summary": "Payments bucket b2.", "attributes": { "region": "us_east", "requires_service": "payments", "initial_assignment": "unassigned" } },
         { "name": "b3", "kind": "bucket", "summary": "Search bucket b3.", "attributes": { "region": "us_east", "requires_service": "search", "initial_assignment": "unassigned" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 3,
+      "difficulty": "Easy"
     },
     {
       "id": "p03",
@@ -163,8 +163,8 @@
         { "name": "b1", "kind": "bucket", "summary": "Analytics bucket b1.", "attributes": { "region": "ap_south", "requires_service": "analytics", "initial_assignment": "unassigned" } },
         { "name": "b2", "kind": "bucket", "summary": "Search bucket b2.", "attributes": { "region": "ap_south", "requires_service": "search", "initial_assignment": "unassigned" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 3,
+      "difficulty": "Easy"
     },
     {
       "id": "p04",
@@ -185,8 +185,8 @@
         { "name": "b3", "kind": "bucket", "summary": "Web bucket b3.", "attributes": { "region": "eu_west", "requires_service": "web", "initial_assignment": "s2_eu" } },
         { "name": "b4", "kind": "bucket", "summary": "Web bucket b4.", "attributes": { "region": "eu_west", "requires_service": "web", "initial_assignment": "s2_eu" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 7,
+      "difficulty": "Medium"
     },
     {
       "id": "p05",
@@ -208,8 +208,8 @@
         { "name": "b3", "kind": "bucket", "summary": "eu_west search bucket b3 (misrouted).", "attributes": { "region": "eu_west", "requires_service": "search", "initial_assignment": "s1_us" } },
         { "name": "b4", "kind": "bucket", "summary": "eu_west search bucket b4.", "attributes": { "region": "eu_west", "requires_service": "search", "initial_assignment": "unassigned" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 4,
+      "difficulty": "Medium"
     },
     {
       "id": "p06",
@@ -230,8 +230,8 @@
         { "name": "b3", "kind": "bucket", "summary": "Search bucket b3.", "attributes": { "region": "us_east", "requires_service": "search", "initial_assignment": "s2_us" } },
         { "name": "b4", "kind": "bucket", "summary": "Search bucket b4.", "attributes": { "region": "us_east", "requires_service": "search", "initial_assignment": "unassigned" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 5,
+      "difficulty": "Medium"
     },
     {
       "id": "p07",
@@ -253,8 +253,8 @@
         { "name": "b4", "kind": "bucket", "summary": "Web bucket b4.", "attributes": { "region": "eu_central", "requires_service": "web", "initial_assignment": "s2_eu" } },
         { "name": "b5", "kind": "bucket", "summary": "Web bucket b5.", "attributes": { "region": "eu_central", "requires_service": "web", "initial_assignment": "s3_eu" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 3,
+      "difficulty": "Medium"
     },
     {
       "id": "p08",
@@ -280,8 +280,8 @@
         { "name": "b5", "kind": "bucket", "summary": "eu_west search bucket b5.", "attributes": { "region": "eu_west", "requires_service": "search", "initial_assignment": "unassigned" } },
         { "name": "b6", "kind": "bucket", "summary": "eu_west ads bucket b6.", "attributes": { "region": "eu_west", "requires_service": "ads", "initial_assignment": "unassigned" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 8,
+      "difficulty": "Hard"
     },
     {
       "id": "p09",
@@ -309,8 +309,8 @@
         { "name": "b6", "kind": "bucket", "summary": "ap_south search bucket b6.", "attributes": { "region": "ap_south", "requires_service": "search", "initial_assignment": "unassigned" } },
         { "name": "b7", "kind": "bucket", "summary": "ap_south payments bucket b7 (misrouted initially).", "attributes": { "region": "ap_south", "requires_service": "payments", "initial_assignment": "s1_us" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 8,
+      "difficulty": "Hard"
     },
     {
       "id": "p10",
@@ -342,8 +342,8 @@
         { "name": "b8", "kind": "bucket", "summary": "ap_south api bucket b8.", "attributes": { "region": "ap_south", "requires_service": "api", "initial_assignment": "unassigned" } },
         { "name": "b9", "kind": "bucket", "summary": "ap_south api bucket b9.", "attributes": { "region": "ap_south", "requires_service": "api", "initial_assignment": "unassigned" } }
       ],
-      "optimal_cost": null,
-      "difficulty": null
+      "optimal_cost": 5,
+      "difficulty": "Hard"
     }
   ]
 }

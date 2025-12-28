@@ -5,7 +5,7 @@
 ;; This task is the most difficult because it requires merging three stacks into a
 ;; single five‑block tower.
 
-(define (problem p10)
+(define (problem p08)
   (:domain blocksworld)
   (:objects A B C D E)
   (:init (arm-empty)

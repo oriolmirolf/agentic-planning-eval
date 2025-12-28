@@ -4,7 +4,7 @@
 ;; C on B and B on A (so F is top and A is bottom).  This problem shows how
 ;; Blocksworld can scale beyond five blocks.
 
-(define (problem p11)
+(define (problem p09)
   (:domain blocksworld)
   (:objects A B C D E F)
   (:init (arm-empty)

@@ -18,12 +18,16 @@
   (:functions
     (capacity ?s - server)
     (load ?s - server)
+    (total-cost)
   )
 
   (:action power-on
     :parameters (?s - server)
     :precondition (not (online ?s))
-    :effect (online ?s)
+    :effect (and
+      (online ?s)
+      (increase (total-cost) 1)
+    )
   )
 
   (:action power-off
@@ -32,7 +36,10 @@
       (online ?s)
       (= (load ?s) 0)
     )
-    :effect (not (online ?s))
+    :effect (and
+      (not (online ?s))
+      (increase (total-cost) 1)
+    )
   )
 
   (:action start-service
@@ -41,7 +48,10 @@
       (online ?s)
       (not (runs ?s ?svc))
     )
-    :effect (runs ?s ?svc)
+    :effect (and
+      (runs ?s ?svc)
+      (increase (total-cost) 1)
+    )
   )
 
   (:action stop-service
@@ -50,7 +60,10 @@
       (online ?s)
       (runs ?s ?svc)
     )
-    :effect (not (runs ?s ?svc))
+    :effect (and
+      (not (runs ?s ?svc))
+      (increase (total-cost) 1)
+    )
   )
 
   (:action assign-bucket
@@ -68,6 +81,7 @@
       (not (unassigned ?b))
       (assigned-to ?b ?s)
       (increase (load ?s) 1)
+      (increase (total-cost) 1)
     )
   )
 
@@ -78,6 +92,7 @@
       (unassigned ?b)
       (not (assigned-to ?b ?s))
       (decrease (load ?s) 1)
+      (increase (total-cost) 1)
     )
   )
 )

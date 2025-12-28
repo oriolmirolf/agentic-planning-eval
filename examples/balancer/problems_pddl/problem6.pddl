@@ -9,6 +9,7 @@
   )
 
   (:init
+    (= (total-cost) 0)
     (server-region s1_us us_east)
     (server-region s2_us us_east)
 
@@ -33,7 +34,8 @@
     (assigned-to b3 s2_us)
     (unassigned b4)
 
-    (= (capacity s1_us) 3)
+    ;; --- FIX: INCREASE CAPACITY TO 4 ---
+    (= (capacity s1_us) 4) 
     (= (capacity s2_us) 3)
 
     (= (load s1_us) 2)
@@ -51,4 +53,6 @@
       (not (online s2_us))
     )
   )
+
+  (:metric minimize (total-cost))
 )

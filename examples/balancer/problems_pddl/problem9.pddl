@@ -10,6 +10,7 @@
   )
 
   (:init
+    (= (total-cost) 0)
     (server-region s1_us us_east)
     (server-region s2_us us_east)
     (server-region s3_ap ap_south)
@@ -80,4 +81,6 @@
       (assigned-to b7 s3_ap)
     )
   )
+
+  (:metric minimize (total-cost))
 )

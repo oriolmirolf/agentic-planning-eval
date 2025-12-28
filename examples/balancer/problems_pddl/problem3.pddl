@@ -9,6 +9,7 @@
   )
 
   (:init
+    (= (total-cost) 0)
     (server-region s1_ap ap_south)
 
     (bucket-region b1 ap_south)
@@ -35,4 +36,6 @@
       (assigned-to b2 s1_ap)
     )
   )
+
+  (:metric minimize (total-cost))
 )

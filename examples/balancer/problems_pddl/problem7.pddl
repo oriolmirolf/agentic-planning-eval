@@ -9,6 +9,7 @@
   )
 
   (:init
+    (= (total-cost) 0)
     (server-region s1_eu eu_central)
     (server-region s2_eu eu_central)
     (server-region s3_eu eu_central)
@@ -61,4 +62,6 @@
       (not (online s3_eu))
     )
   )
+
+  (:metric minimize (total-cost))
 )
