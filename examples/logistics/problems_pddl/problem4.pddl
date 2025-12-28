@@ -1,41 +1,41 @@
 (define (problem logistics-p04)
   (:domain logistics)
   (:objects
-    city1 city2 - city
-    loc1 airport1 loc2 airport2 - location
-    truck1 truck2 - truck
-    plane1 - airplane
-    p1 p2 p3 p4 - package
+    cit_1bce23 cit_4ed853 - city
+    loc_174178 loc_00d56d loc_568dd1 loc_0508bc - location
+    tru_b8d27c tru_77e50e - truck
+    air_4f77ec - airplane
+    pac_e7813b pac_342fd4 pac_71c170 pac_882714 - package
   )
   (:init
     (= (total-cost) 0)
 
     ;; City membership
-    (in-city loc1 city1)
-    (in-city airport1 city1)
-    (in-city loc2 city2)
-    (in-city airport2 city2)
+    (in-city loc_174178 cit_1bce23)
+    (in-city loc_00d56d cit_1bce23)
+    (in-city loc_568dd1 cit_4ed853)
+    (in-city loc_0508bc cit_4ed853)
 
     ;; Airports
-    (airport airport1)
-    (airport airport2)
+    (airport loc_00d56d)
+    (airport loc_0508bc)
 
     ;; Vehicle locations
-    (at-truck truck1 loc1)
-    (at-truck truck2 airport2)
-    (at-airplane plane1 airport1)
+    (at-truck tru_b8d27c loc_174178)
+    (at-truck tru_77e50e loc_0508bc)
+    (at-airplane air_4f77ec loc_00d56d)
 
     ;; Packages
-    (at-package p1 loc1)
-    (at-package p2 loc1)
-    (at-package p3 loc1)
-    (at-package p4 loc1)
+    (at-package pac_e7813b loc_174178)
+    (at-package pac_342fd4 loc_174178)
+    (at-package pac_71c170 loc_174178)
+    (at-package pac_882714 loc_174178)
   )
   (:goal (and
-    (at-package p1 loc2)
-    (at-package p2 loc2)
-    (at-package p3 loc2)
-    (at-package p4 loc2)
+    (at-package pac_e7813b loc_568dd1)
+    (at-package pac_342fd4 loc_568dd1)
+    (at-package pac_71c170 loc_568dd1)
+    (at-package pac_882714 loc_568dd1)
   ))
   (:metric minimize (total-cost))
 )

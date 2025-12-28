@@ -1,5 +1,5 @@
 {
-  "domain_prompt": "You are a planning agent in a simplified **Logistics** world (a classic IPC planning domain).\n\nScenario:\n- There are multiple **cities**. Each city contains **locations** (such as depots or customer sites).\n- Some locations are **airports**.\n- **Trucks** can drive between locations **within the same city**.\n- An **airplane** can fly **between airports**.\n- **Packages** can be moved by loading them into a truck or airplane, moving the vehicle, and unloading.\n\nA package is always exactly one of:\n- sitting at a location, or\n- inside a truck, or\n- inside the airplane.\n\nLegal actions (use these exact action names):\n1) drive-truck TRUCK FROM TO CITY\n   - Preconditions: TRUCK is at FROM; FROM and TO are in CITY.\n   - Effects: TRUCK is now at TO.\n2) load-truck PACKAGE TRUCK LOCATION\n   - Preconditions: PACKAGE is at LOCATION; TRUCK is at LOCATION.\n   - Effects: PACKAGE is inside TRUCK (and no longer at LOCATION).\n3) unload-truck PACKAGE TRUCK LOCATION\n   - Preconditions: PACKAGE is inside TRUCK; TRUCK is at LOCATION.\n   - Effects: PACKAGE is at LOCATION (and no longer inside TRUCK).\n4) fly-airplane PLANE AIRPORT_FROM AIRPORT_TO\n   - Preconditions: PLANE is at AIRPORT_FROM; both are airports.\n   - Effects: PLANE is now at AIRPORT_TO.\n5) load-airplane PACKAGE PLANE AIRPORT\n   - Preconditions: PACKAGE is at AIRPORT; PLANE is at AIRPORT; AIRPORT is an airport.\n   - Effects: PACKAGE is inside PLANE (and no longer at AIRPORT).\n6) unload-airplane PACKAGE PLANE AIRPORT\n   - Preconditions: PACKAGE is inside PLANE; PLANE is at AIRPORT.\n   - Effects: PACKAGE is at AIRPORT (and no longer inside PLANE).\n\nObjective:\n- Achieve the goal locations for all packages.\n- Try to minimize the number of actions.\n\nOUTPUT REQUIREMENTS (IMPORTANT):\nReturn ONLY a fenced code block containing one action per line in the following machine-readable format:\n- (drive-truck TRUCK FROM TO CITY)\n- (load-truck PACKAGE TRUCK LOCATION)\n- (unload-truck PACKAGE TRUCK LOCATION)\n- (fly-airplane PLANE AIRPORT_FROM AIRPORT_TO)\n- (load-airplane PACKAGE PLANE AIRPORT)\n- (unload-airplane PACKAGE PLANE AIRPORT)\n\nUse exactly the object names provided (e.g., truck1, loc1, airport1, city1, p1).\nNo numbering, no explanations, no extra text.\n\nExample:\n```\n(load-truck p1 truck1 loc1)\n(drive-truck truck1 loc1 airport1 city1)\n(unload-truck p1 truck1 airport1)\n(load-airplane p1 plane1 airport1)\n(fly-airplane plane1 airport1 airport2)\n(unload-airplane p1 plane1 airport2)\n(load-truck p1 truck2 airport2)\n(drive-truck truck2 airport2 loc2 city2)\n(unload-truck p1 truck2 loc2)\n```",
+  "domain_prompt": "You are a planning agent in a simplified **Logistics** world (a classic IPC planning domain).\n\nScenario:\n- There are multiple **cities**. Each city contains **locations** (such as depots or customer sites).\n- Some locations are **airports**.\n- **Trucks** can drive between locations **within the same city**.\n- An **airplane** can fly **between airports**.\n- **Packages** can be moved by loading them into a truck or airplane, moving the vehicle, and unloading.\n\nA package is always exactly one of:\n- sitting at a location, or\n- inside a truck, or\n- inside the airplane.\n\nLegal actions (use these exact action names):\n1) drive-truck TRUCK FROM TO CITY\n   - Preconditions: TRUCK is at FROM; FROM and TO are in CITY.\n   - Effects: TRUCK is now at TO.\n2) load-truck PACKAGE TRUCK LOCATION\n   - Preconditions: PACKAGE is at LOCATION; TRUCK is at LOCATION.\n   - Effects: PACKAGE is inside TRUCK (and no longer at LOCATION).\n3) unload-truck PACKAGE TRUCK LOCATION\n   - Preconditions: PACKAGE is inside TRUCK; TRUCK is at LOCATION.\n   - Effects: PACKAGE is at LOCATION (and no longer inside TRUCK).\n4) fly-airplane PLANE AIRPORT_FROM AIRPORT_TO\n   - Preconditions: PLANE is at AIRPORT_FROM; both are airports.\n   - Effects: PLANE is now at AIRPORT_TO.\n5) load-airplane PACKAGE PLANE AIRPORT\n   - Preconditions: PACKAGE is at AIRPORT; PLANE is at AIRPORT; AIRPORT is an airport.\n   - Effects: PACKAGE is inside PLANE (and no longer at AIRPORT).\n6) unload-airplane PACKAGE PLANE AIRPORT\n   - Preconditions: PACKAGE is inside PLANE; PLANE is at AIRPORT.\n   - Effects: PACKAGE is at AIRPORT (and no longer inside PLANE).\n\nObjective:\n- Achieve the goal locations for all packages.\n- Try to minimize the number of actions.\n\nOUTPUT REQUIREMENTS (IMPORTANT):\nReturn ONLY a fenced code block containing one action per line in the following machine-readable format:\n- (drive-truck TRUCK FROM TO CITY)\n- (load-truck PACKAGE TRUCK LOCATION)\n- (unload-truck PACKAGE TRUCK LOCATION)\n- (fly-airplane PLANE AIRPORT_FROM AIRPORT_TO)\n- (load-airplane PACKAGE PLANE AIRPORT)\n- (unload-airplane PACKAGE PLANE AIRPORT)\n\nUse exactly the object names provided (e.g., tru_b8d27c, loc_174178, loc_00d56d, cit_1bce23, pac_e7813b).\nNo numbering, no explanations, no extra text.\n\nExample:\n```\n(load-truck pac_e7813b tru_b8d27c loc_174178)\n(drive-truck tru_b8d27c loc_174178 loc_00d56d cit_1bce23)\n(unload-truck pac_e7813b tru_b8d27c loc_00d56d)\n(load-airplane pac_e7813b air_4f77ec loc_00d56d)\n(fly-airplane air_4f77ec loc_00d56d loc_0508bc)\n(unload-airplane pac_e7813b air_4f77ec loc_0508bc)\n(load-truck pac_e7813b tru_77e50e loc_0508bc)\n(drive-truck tru_77e50e loc_0508bc loc_568dd1 cit_4ed853)\n(unload-truck pac_e7813b tru_77e50e loc_568dd1)\n```",
   "actions": [
     {
       "name": "drive-truck",
@@ -174,96 +174,96 @@
   "problems": [
     {
       "id": "p01",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -272,105 +272,105 @@
     },
     {
       "id": "p02",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4 start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -379,114 +379,114 @@
     },
     {
       "id": "p03",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2, p3 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4, pac_71c170 start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2, p3. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2, p3."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p3",
+          "name": "pac_71c170",
           "kind": "package",
-          "summary": "Package p3.",
+          "summary": "Package pac_71c170.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -495,123 +495,123 @@
     },
     {
       "id": "p04",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2, p3, p4 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4, pac_71c170, pac_882714 start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2, p3, p4. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2, p3, p4."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p3",
+          "name": "pac_71c170",
           "kind": "package",
-          "summary": "Package p3.",
+          "summary": "Package pac_71c170.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p4",
+          "name": "pac_882714",
           "kind": "package",
-          "summary": "Package p4.",
+          "summary": "Package pac_882714.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -620,132 +620,132 @@
     },
     {
       "id": "p05",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2, p3, p4, p5 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807 start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2, p3, p4, p5. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2, p3, p4, p5."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p3",
+          "name": "pac_71c170",
           "kind": "package",
-          "summary": "Package p3.",
+          "summary": "Package pac_71c170.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p4",
+          "name": "pac_882714",
           "kind": "package",
-          "summary": "Package p4.",
+          "summary": "Package pac_882714.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p5",
+          "name": "pac_bc8807",
           "kind": "package",
-          "summary": "Package p5.",
+          "summary": "Package pac_bc8807.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -754,141 +754,141 @@
     },
     {
       "id": "p06",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2, p3, p4, p5, p6 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2, p3, p4, p5, p6. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2, p3, p4, p5, p6."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p3",
+          "name": "pac_71c170",
           "kind": "package",
-          "summary": "Package p3.",
+          "summary": "Package pac_71c170.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p4",
+          "name": "pac_882714",
           "kind": "package",
-          "summary": "Package p4.",
+          "summary": "Package pac_882714.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p5",
+          "name": "pac_bc8807",
           "kind": "package",
-          "summary": "Package p5.",
+          "summary": "Package pac_bc8807.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p6",
+          "name": "pac_a3352d",
           "kind": "package",
-          "summary": "Package p6.",
+          "summary": "Package pac_a3352d.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -897,150 +897,150 @@
     },
     {
       "id": "p07",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2, p3, p4, p5, p6, p7 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2, p3, p4, p5, p6, p7. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2, p3, p4, p5, p6, p7."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p3",
+          "name": "pac_71c170",
           "kind": "package",
-          "summary": "Package p3.",
+          "summary": "Package pac_71c170.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p4",
+          "name": "pac_882714",
           "kind": "package",
-          "summary": "Package p4.",
+          "summary": "Package pac_882714.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p5",
+          "name": "pac_bc8807",
           "kind": "package",
-          "summary": "Package p5.",
+          "summary": "Package pac_bc8807.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p6",
+          "name": "pac_a3352d",
           "kind": "package",
-          "summary": "Package p6.",
+          "summary": "Package pac_a3352d.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p7",
+          "name": "pac_39acae",
           "kind": "package",
-          "summary": "Package p7.",
+          "summary": "Package pac_39acae.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -1049,159 +1049,159 @@
     },
     {
       "id": "p08",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2, p3, p4, p5, p6, p7, p8 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280 start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2, p3, p4, p5, p6, p7, p8. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2, p3, p4, p5, p6, p7, p8."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p3",
+          "name": "pac_71c170",
           "kind": "package",
-          "summary": "Package p3.",
+          "summary": "Package pac_71c170.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p4",
+          "name": "pac_882714",
           "kind": "package",
-          "summary": "Package p4.",
+          "summary": "Package pac_882714.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p5",
+          "name": "pac_bc8807",
           "kind": "package",
-          "summary": "Package p5.",
+          "summary": "Package pac_bc8807.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p6",
+          "name": "pac_a3352d",
           "kind": "package",
-          "summary": "Package p6.",
+          "summary": "Package pac_a3352d.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p7",
+          "name": "pac_39acae",
           "kind": "package",
-          "summary": "Package p7.",
+          "summary": "Package pac_39acae.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p8",
+          "name": "pac_916280",
           "kind": "package",
-          "summary": "Package p8.",
+          "summary": "Package pac_916280.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -1210,168 +1210,168 @@
     },
     {
       "id": "p09",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2, p3, p4, p5, p6, p7, p8, p9 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280, pac_238518 start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2, p3, p4, p5, p6, p7, p8, p9. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2, p3, p4, p5, p6, p7, p8, p9."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280, pac_238518. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280, pac_238518."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p3",
+          "name": "pac_71c170",
           "kind": "package",
-          "summary": "Package p3.",
+          "summary": "Package pac_71c170.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p4",
+          "name": "pac_882714",
           "kind": "package",
-          "summary": "Package p4.",
+          "summary": "Package pac_882714.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p5",
+          "name": "pac_bc8807",
           "kind": "package",
-          "summary": "Package p5.",
+          "summary": "Package pac_bc8807.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p6",
+          "name": "pac_a3352d",
           "kind": "package",
-          "summary": "Package p6.",
+          "summary": "Package pac_a3352d.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p7",
+          "name": "pac_39acae",
           "kind": "package",
-          "summary": "Package p7.",
+          "summary": "Package pac_39acae.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p8",
+          "name": "pac_916280",
           "kind": "package",
-          "summary": "Package p8.",
+          "summary": "Package pac_916280.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p9",
+          "name": "pac_238518",
           "kind": "package",
-          "summary": "Package p9.",
+          "summary": "Package pac_238518.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],
@@ -1380,177 +1380,177 @@
     },
     {
       "id": "p10",
-      "prompt": "Cities: city1, city2.\nLocations in city1: loc1 (depot), airport1 (airport).\nLocations in city2: airport2 (airport), loc2 (delivery site).\nVehicles: truck1 starts at loc1 in city1; truck2 starts at airport2 in city2; plane1 starts at airport1.\nPackages: p1, p2, p3, p4, p5, p6, p7, p8, p9, p10 start at loc1.\n\nGoal: deliver all packages to loc2.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
+      "prompt": "Cities: cit_1bce23, cit_4ed853.\nLocations in cit_1bce23: loc_174178 (depot), loc_00d56d (airport).\nLocations in cit_4ed853: loc_0508bc (airport), loc_568dd1 (delivery site).\nVehicles: tru_b8d27c starts at loc_174178 in cit_1bce23; tru_77e50e starts at loc_0508bc in cit_4ed853; air_4f77ec starts at loc_00d56d.\nPackages: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280, pac_238518, pac_2bce98 start at loc_174178.\n\nGoal: deliver all packages to loc_568dd1.\n\nOUTPUT: Only a fenced code block with one action per line using the allowed actions (drive-truck, load-truck, unload-truck, fly-airplane, load-airplane, unload-airplane). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Ship packages from city1 to city2 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc1: p1, p2, p3, p4, p5, p6, p7, p8, p9, p10. truck1 at loc1. plane1 at airport1. truck2 at airport2.",
-        "goal": "All packages are at loc2: p1, p2, p3, p4, p5, p6, p7, p8, p9, p10."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
+        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280, pac_238518, pac_2bce98. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
+        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807, pac_a3352d, pac_39acae, pac_916280, pac_238518, pac_2bce98."
       },
       "objects": [
         {
-          "name": "city1",
+          "name": "cit_1bce23",
           "kind": "city",
           "summary": "City 1.",
           "attributes": {}
         },
         {
-          "name": "city2",
+          "name": "cit_4ed853",
           "kind": "city",
           "summary": "City 2.",
           "attributes": {}
         },
         {
-          "name": "loc1",
+          "name": "loc_174178",
           "kind": "location",
-          "summary": "A depot in city1.",
+          "summary": "A depot in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": false,
             "role": "origin"
           }
         },
         {
-          "name": "airport1",
+          "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in city1.",
+          "summary": "The airport in cit_1bce23.",
           "attributes": {
-            "city": "city1",
+            "city": "cit_1bce23",
             "airport": true
           }
         },
         {
-          "name": "airport2",
+          "name": "loc_0508bc",
           "kind": "location",
-          "summary": "The airport in city2.",
+          "summary": "The airport in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": true
           }
         },
         {
-          "name": "loc2",
+          "name": "loc_568dd1",
           "kind": "location",
-          "summary": "A delivery site in city2.",
+          "summary": "A delivery site in cit_4ed853.",
           "attributes": {
-            "city": "city2",
+            "city": "cit_4ed853",
             "airport": false,
             "role": "destination"
           }
         },
         {
-          "name": "truck1",
+          "name": "tru_b8d27c",
           "kind": "truck",
-          "summary": "Truck operating in city1.",
+          "summary": "Truck operating in cit_1bce23.",
           "attributes": {
-            "start_location": "loc1",
-            "city": "city1"
+            "start_location": "loc_174178",
+            "city": "cit_1bce23"
           }
         },
         {
-          "name": "truck2",
+          "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in city2.",
+          "summary": "Truck operating in cit_4ed853.",
           "attributes": {
-            "start_location": "airport2",
-            "city": "city2"
+            "start_location": "loc_0508bc",
+            "city": "cit_4ed853"
           }
         },
         {
-          "name": "plane1",
+          "name": "air_4f77ec",
           "kind": "airplane",
           "summary": "Cargo airplane connecting airports.",
           "attributes": {
-            "start_location": "airport1"
+            "start_location": "loc_00d56d"
           }
         },
         {
-          "name": "p1",
+          "name": "pac_e7813b",
           "kind": "package",
-          "summary": "Package p1.",
+          "summary": "Package pac_e7813b.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p2",
+          "name": "pac_342fd4",
           "kind": "package",
-          "summary": "Package p2.",
+          "summary": "Package pac_342fd4.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p3",
+          "name": "pac_71c170",
           "kind": "package",
-          "summary": "Package p3.",
+          "summary": "Package pac_71c170.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p4",
+          "name": "pac_882714",
           "kind": "package",
-          "summary": "Package p4.",
+          "summary": "Package pac_882714.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p5",
+          "name": "pac_bc8807",
           "kind": "package",
-          "summary": "Package p5.",
+          "summary": "Package pac_bc8807.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p6",
+          "name": "pac_a3352d",
           "kind": "package",
-          "summary": "Package p6.",
+          "summary": "Package pac_a3352d.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p7",
+          "name": "pac_39acae",
           "kind": "package",
-          "summary": "Package p7.",
+          "summary": "Package pac_39acae.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p8",
+          "name": "pac_916280",
           "kind": "package",
-          "summary": "Package p8.",
+          "summary": "Package pac_916280.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p9",
+          "name": "pac_238518",
           "kind": "package",
-          "summary": "Package p9.",
+          "summary": "Package pac_238518.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         },
         {
-          "name": "p10",
+          "name": "pac_2bce98",
           "kind": "package",
-          "summary": "Package p10.",
+          "summary": "Package pac_2bce98.",
           "attributes": {
-            "start_location": "loc1",
-            "goal_location": "loc2"
+            "start_location": "loc_174178",
+            "goal_location": "loc_568dd1"
           }
         }
       ],

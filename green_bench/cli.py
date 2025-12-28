@@ -4,12 +4,22 @@ import argparse
 import os
 import sys
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 import mlflow  # type: ignore
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from .data import DomainSpec, discover_domains, load_domain
 from .mlflow_utils import get_git_info, init_mlflow, set_required_git_tag
@@ -41,7 +51,6 @@ DEFAULT_STRATEGIES = [
     "self_refine",
 ]
 
-
 DEFAULT_BASE_URL = (
     os.getenv("GREEN_BENCH_BASE_URL")
     or os.getenv("OPENAI_BASE_URL")
@@ -50,7 +59,8 @@ DEFAULT_BASE_URL = (
 
 
 def is_thinking_model(model_name: str) -> bool:
-    return model_name in THINKING_MODELS or "thinking" in (model_name or "").lower()
+    return model_name in THINKING_MODELS or "thinking" in (
+        model_name or "").lower()
 
 
 def max_tokens_for(model_name: str) -> int:
@@ -80,14 +90,16 @@ def _parse_base_url_map(raw: str | None) -> dict[str, str]:
             continue
         if "=" not in chunk:
             raise ValueError(
-                f"Invalid --base-url-map entry {chunk!r}. Expected 'MODEL=URL'."
+                f"Invalid --base-url-map entry {
+                    chunk!r}. Expected 'MODEL=URL'."
             )
         k, v = chunk.split("=", 1)
         k = k.strip()
         v = v.strip()
         if not k or not v:
             raise ValueError(
-                f"Invalid --base-url-map entry {chunk!r}. Expected 'MODEL=URL'."
+                f"Invalid --base-url-map entry {
+                    chunk!r}. Expected 'MODEL=URL'."
             )
         out[k] = v
     return out
@@ -95,16 +107,27 @@ def _parse_base_url_map(raw: str | None) -> dict[str, str]:
 
 @contextmanager
 def launched_model(
-    launcher: VecInfLauncher, model_name: str
+    launcher: VecInfLauncher,
+    model_name: str,
+    *,
+    on_phase: Callable[[str], None] | None = None,
 ) -> Iterator[ModelEndpoint]:
     job_id: str | None = None
     try:
+        if on_phase:
+            on_phase(f"Launching {model_name} via vec_inf…")
         job_id = launcher.launch(model_name)
+
+        if on_phase:
+            on_phase(f"Waiting until ready: {model_name}…")
         base_url = launcher.wait_until_ready(job_id)
+
         yield ModelEndpoint(model_name=model_name, job_id=job_id, base_url=base_url)
     finally:
         if job_id:
             try:
+                if on_phase:
+                    on_phase(f"Shutting down {model_name}…")
                 launcher.shutdown(job_id)
             except Exception as e:
                 print(
@@ -114,11 +137,18 @@ def launched_model(
 
 
 @contextmanager
-def manual_model(model_name: str, base_url: str) -> Iterator[ModelEndpoint]:
+def manual_model(
+    model_name: str,
+    base_url: str,
+    *,
+    on_phase: Callable[[str], None] | None = None,
+) -> Iterator[ModelEndpoint]:
     """Use a pre-launched OpenAI-compatible endpoint (e.g., SSH tunnel).
 
     This mode does NOT attempt to import or use vec_inf.
     """
+    if on_phase:
+        on_phase(f"Using manual endpoint for {model_name}: {base_url}")
     yield ModelEndpoint(model_name=model_name, job_id="manual", base_url=base_url)
 
 
@@ -144,7 +174,8 @@ def log_run_common_tags(*, git_commit: str, repo_dirty: bool) -> None:
 # -----------------------------
 
 
-def _load_domains(examples_dir: Path, domain_names: Sequence[str]) -> list[DomainSpec]:
+def _load_domains(examples_dir: Path,
+                  domain_names: Sequence[str]) -> list[DomainSpec]:
     return [load_domain(examples_dir, dn) for dn in domain_names]
 
 
@@ -175,12 +206,14 @@ def run_suite(
     allow_shared_base_url: bool,
     limit_problems: int | None = None,
 ) -> None:
+    console = Console(stderr=True)
+
     # Resolve git + ensure green_agent importability
     git = get_git_info()
     if git.dirty:
-        print(
-            f"[WARN] Git repo is dirty (uncommitted changes). commit={git.commit}",
-            file=sys.stderr,
+        console.print(
+            f"[yellow][WARN][/yellow] Git repo is dirty (uncommitted changes). commit={
+                git.commit}"
         )
 
     _ensure_repo_on_syspath(git.repo_root)
@@ -198,309 +231,379 @@ def run_suite(
     # Resolve domains
     domain_specs = _load_domains(examples_dir, domains)
 
-    # Decide how endpoints are provided.
-    # - vecinf: launch/wait/shutdown via vec_inf
-    # - manual: assume a pre-launched OpenAI-compatible endpoint (e.g., SSH tunnel)
-    # - auto: try vecinf, fall back to manual if vec_inf isn't importable
-    mode = (launch_mode or "auto").strip().lower()
-    if mode not in {"auto", "vecinf", "manual"}:
-        raise ValueError("launch_mode must be one of: auto | vecinf | manual")
+    # --- Progress totals ---
+    def n_problems(dom: DomainSpec) -> int:
+        return min(len(dom.problems), limit_problems) if limit_problems else len(
+            dom.problems)
 
-    launcher: VecInfLauncher | None = None
-    effective_mode = mode
-    if mode in {"auto", "vecinf"}:
-        try:
-            launcher = VecInfLauncher()
-            effective_mode = "vecinf"
-        except ImportError as e:
-            if mode == "vecinf":
-                raise
-            print(
-                "[WARN] vec_inf not importable in this Python environment; "
-                "falling back to manual endpoint mode. "
-                "Pass --mode manual --base-url http://localhost:5679/v1 "
-                "to silence this warning.",
-                file=sys.stderr,
+    problems_by_domain: dict[str, int] = {
+        d.name: n_problems(d) for d in domain_specs}
+    total_per_model = sum(
+        problems_by_domain[d.name] * len(strategies) for d in domain_specs)
+    grand_total = total_per_model * len(list(models))
+
+    progress_columns = [
+        SpinnerColumn(),
+        TextColumn("[bold blue]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("• ETA "),
+        TimeRemainingColumn(),
+    ]
+
+    def phase_update(progress: Progress, task_id: int, msg: str) -> None:
+        progress.update(task_id, description=f"Phase: {msg}")
+
+    with Progress(*progress_columns, console=console) as progress:
+        t_phase = progress.add_task("Phase: idle", total=None)  # indeterminate
+        t_all = progress.add_task("ALL runs", total=grand_total)
+        t_model = progress.add_task("Model", total=0)
+        t_domain = progress.add_task("Domain", total=0)
+        t_strategy = progress.add_task("Strategy", total=0)
+
+        # Decide how endpoints are provided.
+        # - vecinf: launch/wait/shutdown via vec_inf
+        # - manual: assume a pre-launched OpenAI-compatible endpoint (e.g., SSH tunnel)
+        # - auto: try vecinf, fall back to manual if vec_inf isn't importable
+        mode = (launch_mode or "auto").strip().lower()
+        if mode not in {"auto", "vecinf", "manual"}:
+            raise ValueError(
+                "launch_mode must be one of: auto | vecinf | manual")
+
+        launcher: VecInfLauncher | None = None
+        effective_mode = mode
+        if mode in {"auto", "vecinf"}:
+            try:
+                launcher = VecInfLauncher()
+                effective_mode = "vecinf"
+            except ImportError as e:
+                if mode == "vecinf":
+                    raise
+                console.print(
+                    "[yellow][WARN][/yellow] vec_inf not importable in this Python environment; "  # noqa: E501
+                    "falling back to manual endpoint mode. "
+                    "Pass --mode manual --base-url http://localhost:5679/v1 to silence this warning."  # noqa: E501
+                )
+                console.print(
+                    f"[yellow][WARN][/yellow] vec_inf import error: {e}")
+                effective_mode = "manual"
+
+        if effective_mode == "manual" and not (base_url or base_url_map):
+            raise ValueError(
+                "Manual mode requires --base-url or --base-url-map "
+                "(or set GREEN_BENCH_BASE_URL)."
             )
-            print(f"[WARN] vec_inf import error: {e}", file=sys.stderr)
-            effective_mode = "manual"
 
-    if effective_mode == "manual" and not (base_url or base_url_map):
-        raise ValueError(
-            "Manual mode requires --base-url or --base-url-map "
-            "(or set GREEN_BENCH_BASE_URL)."
-        )
+        if (
+            effective_mode == "manual"
+            and not base_url_map
+            and len(list(models)) > 1
+            and not bool(allow_shared_base_url)
+        ):
+            raise ValueError(
+                "Manual endpoint mode with a single --base-url cannot safely run multiple models. "  # noqa: E501
+                "Either: (1) pass --models <served-model-name> to run just the currently launched model, "  # noqa: E501
+                "or (2) provide --base-url-map 'MODEL=URL,...' for multiple tunnels/endpoints, "  # noqa: E501
+                "or (3) pass --allow-shared-base-url if you truly host multiple models behind one endpoint."  # noqa: E501
+            )
 
-    if (
-        effective_mode == "manual"
-        and not base_url_map
-        and len(list(models)) > 1
-        and not bool(allow_shared_base_url)
-    ):
-        raise ValueError(
-            "Manual endpoint mode with a single --base-url "
-            "cannot safely run multiple models. "
-            "Either: (1) pass --models <served-model-name> to run "
-            "just the currently launched model, "
-            "or (2) provide --base-url-map 'MODEL=URL,...' for "
-            "multiple tunnels/endpoints, "
-            "or (3) pass --allow-shared-base-url if you truly host "
-            "multiple models behind one endpoint."
-        )
+        with mlflow_run(f"session_{stamp}", nested=False):
+            log_run_common_tags(git_commit=git.commit, repo_dirty=git.dirty)
+            mlflow.log_param("examples_dir", str(examples_dir))
+            mlflow.log_param("val_path", str(val_path) if val_path else "")
+            mlflow.log_param("val_flags", " ".join(val_flags))
+            mlflow.log_param("tolerance", float(tolerance))
+            mlflow.set_tag("endpoint_mode", effective_mode)
 
-    with mlflow_run(f"session_{stamp}", nested=False):
-        log_run_common_tags(git_commit=git.commit, repo_dirty=git.dirty)
-        mlflow.log_param("examples_dir", str(examples_dir))
-        mlflow.log_param("val_path", str(val_path) if val_path else "")
-        mlflow.log_param("val_flags", " ".join(val_flags))
-        mlflow.log_param("tolerance", float(tolerance))
-        mlflow.set_tag("endpoint_mode", effective_mode)
+            for model_name in models:
+                # Reset per-model progress
+                progress.reset(t_model, total=total_per_model)
+                progress.update(
+                    t_model,
+                    completed=0,
+                    description=f"Model: {model_name}")
+                phase_update(
+                    progress,
+                    t_phase,
+                    f"Preparing endpoint for {model_name}…")
 
-        for model_name in models:
-            with mlflow_run(f"model={model_name}", nested=True):
-                log_run_common_tags(git_commit=git.commit, repo_dirty=git.dirty)
-                mlflow.log_param("model_name", model_name)
-                mlflow.log_param("temperature", 0.0)
-                mlflow.log_param("max_tokens", max_tokens_for(model_name))
+                with mlflow_run(f"model={model_name}", nested=True):
+                    log_run_common_tags(
+                        git_commit=git.commit, repo_dirty=git.dirty)
+                    mlflow.log_param("model_name", model_name)
+                    mlflow.log_param("temperature", 0.0)
+                    mlflow.log_param("max_tokens", max_tokens_for(model_name))
 
-                # Resolve a model endpoint (either launched via vec_inf or
-                # pre-launched)
-                if effective_mode == "vecinf":
-                    assert launcher is not None
-                    ep_ctx = launched_model(launcher, model_name)
-                else:
-                    if base_url_map:
-                        if model_name not in base_url_map:
-                            raise ValueError(
-                                f"Missing base URL for model {
-                                    model_name!r
-                                } in --base-url-map. "
-                                "Either add it or pass a single --base-url "
-                                "and a single --models."
-                            )
-                        url = base_url_map[model_name]
+                    # Resolve a model endpoint (either launched via vec_inf or
+                    # pre-launched)
+                    if effective_mode == "vecinf":
+                        assert launcher is not None
+                        ep_ctx = launched_model(
+                            launcher,
+                            model_name,
+                            on_phase=lambda s: phase_update(
+                                progress, t_phase, s),
+                        )
                     else:
-                        url = base_url
-                    ep_ctx = manual_model(model_name, url)
+                        if base_url_map:
+                            if model_name not in base_url_map:
+                                raise ValueError(
+                                    f"Missing base URL for model {
+                                        model_name!r} in --base-url-map. "
+                                    "Either add it or pass a single --base-url and a single --models."  # noqa: E501
+                                )
+                            url = base_url_map[model_name]
+                        else:
+                            url = base_url
+                        ep_ctx = manual_model(
+                            model_name,
+                            url,
+                            on_phase=lambda s: phase_update(
+                                progress, t_phase, s),
+                        )
 
-                with ep_ctx as ep:
-                    mlflow.set_tag("vecinf_job_id", ep.job_id)
-                    mlflow.set_tag("base_url", ep.base_url)
-                    mlflow.set_tag("endpoint_mode", effective_mode)
+                    with ep_ctx as ep:
+                        mlflow.set_tag("vecinf_job_id", ep.job_id)
+                        mlflow.set_tag("base_url", ep.base_url)
+                        mlflow.set_tag("endpoint_mode", effective_mode)
 
-                    client = OpenAICompatClient(
-                        base_url=ep.base_url,
-                        api_key=openai_api_key,
-                        request_timeout_s=request_timeout_s,
-                    )
+                        client = OpenAICompatClient(
+                            base_url=ep.base_url,
+                            api_key=openai_api_key,
+                            request_timeout_s=request_timeout_s,
+                        )
 
-                    for dom in domain_specs:
-                        with mlflow_run(f"domain={dom.name}", nested=True):
-                            log_run_common_tags(
-                                git_commit=git.commit, repo_dirty=git.dirty
-                            )
-                            mlflow.log_param("domain", dom.name)
-                            mlflow.log_param("prompts_path", str(dom.prompts_path))
+                        # Per-domain loop
+                        for dom in domain_specs:
+                            problems = dom.problems[:limit_problems] if limit_problems else dom.problems  # noqa: E501
 
-                            problems = (
-                                dom.problems[:limit_problems]
-                                if limit_problems
-                                else dom.problems
-                            )
+                            # Reset per-domain progress for this model
+                            domain_total = len(problems) * len(strategies)
+                            progress.reset(t_domain, total=domain_total)
+                            progress.update(
+                                t_domain,
+                                completed=0,
+                                description=f"Domain: {
+                                    dom.name}")
 
-                            for strat in strategies:
-                                if strat not in STRATEGIES:
-                                    raise ValueError(
-                                        f"Unknown strategy: {strat}. Known: {
-                                            sorted(STRATEGIES)
-                                        }"
+                            with mlflow_run(f"domain={dom.name}", nested=True):
+                                log_run_common_tags(
+                                    git_commit=git.commit, repo_dirty=git.dirty)
+                                mlflow.log_param("domain", dom.name)
+                                mlflow.log_param(
+                                    "prompts_path", str(
+                                        dom.prompts_path))
+
+                                for strat in strategies:
+                                    if strat not in STRATEGIES:
+                                        raise ValueError(
+                                            f"Unknown strategy: {strat}. Known: {
+                                                sorted(STRATEGIES)}"
+                                        )
+
+                                    # Reset per-strategy progress (within this
+                                    # domain)
+                                    progress.reset(
+                                        t_strategy, total=len(problems))
+                                    progress.update(
+                                        t_strategy,
+                                        completed=0,
+                                        description=f"Strategy: {strat}",
                                     )
 
-                                with mlflow_run(f"strategy={strat}", nested=True):
-                                    log_run_common_tags(
-                                        git_commit=git.commit, repo_dirty=git.dirty
-                                    )
-                                    mlflow.log_param("strategy", strat)
+                                    with mlflow_run(f"strategy={strat}", nested=True):
+                                        log_run_common_tags(
+                                            git_commit=git.commit, repo_dirty=git.dirty)
+                                        mlflow.log_param("strategy", strat)
 
-                                    for pr in problems:
-                                        run_name = f"{dom.name}/{pr.problem_id}"
-                                        with mlflow_run(run_name, nested=True):
-                                            log_run_common_tags(
-                                                git_commit=git.commit,
-                                                repo_dirty=git.dirty,
+                                        for pr in problems:
+                                            phase_update(
+                                                progress,
+                                                t_phase,
+                                                f"Running {model_name} • {
+                                                    dom.name} • {strat} • {
+                                                    pr.problem_id}",
                                             )
 
-                                            max_toks = max_tokens_for(model_name)
+                                            run_name = f"{dom.name}/{pr.problem_id}"
+                                            with mlflow_run(run_name, nested=True):
+                                                log_run_common_tags(
+                                                    git_commit=git.commit,
+                                                    repo_dirty=git.dirty,
+                                                )
 
-                                            # Required params
-                                            mlflow.log_params(
-                                                {
-                                                    "model_name": model_name,
-                                                    "strategy": strat,
-                                                    "temperature": 0.0,
-                                                    "max_tokens": max_toks,
-                                                    "problem_id": pr.problem_id,
-                                                    "problem_index": pr.index,
-                                                }
-                                            )
+                                                max_toks = max_tokens_for(
+                                                    model_name)
 
-                                            # Helpful tags for filtering
-                                            mlflow.set_tag("domain", dom.name)
-                                            mlflow.set_tag("strategy", strat)
-                                            mlflow.set_tag("problem_id", pr.problem_id)
-                                            if pr.difficulty:
+                                                # Required params
+                                                mlflow.log_params(
+                                                    {
+                                                        "model_name": model_name,
+                                                        "strategy": strat,
+                                                        "temperature": 0.0,
+                                                        "max_tokens": max_toks,
+                                                        "problem_id": pr.problem_id,
+                                                        "problem_index": pr.index,
+                                                    }
+                                                )
+
+                                                # Helpful tags for filtering
                                                 mlflow.set_tag(
-                                                    "difficulty", pr.difficulty
+                                                    "domain", dom.name)
+                                                mlflow.set_tag(
+                                                    "strategy", strat)
+                                                mlflow.set_tag(
+                                                    "problem_id", pr.problem_id)
+                                                if pr.difficulty:
+                                                    mlflow.set_tag(
+                                                        "difficulty", pr.difficulty)
+
+                                                # Build the final prompt for
+                                                # this strategy
+                                                final_prompt = build_prompt(
+                                                    strat,
+                                                    domain_prompt=dom.domain_prompt,
+                                                    problem_prompt=pr.prompt,
                                                 )
 
-                                            # Build the final prompt for this
-                                            # strategy
-                                            final_prompt = build_prompt(
-                                                strat,
-                                                domain_prompt=dom.domain_prompt,
-                                                problem_prompt=pr.prompt,
-                                            )
-
-                                            # LLM call
-                                            t0 = time.time()
-                                            raw_text = ""
-                                            llm_error: str | None = None
-                                            try:
-                                                raw_text = client.generate(
-                                                    LLMRequest(
-                                                        prompt=final_prompt,
-                                                        model=model_name,
-                                                        temperature=0.0,
-                                                        max_tokens=max_toks,
-                                                    )
-                                                )
-                                            except Exception as e:
-                                                llm_error = str(e)
-                                            t1 = time.time()
-
-                                            # Parse plan
-                                            parse = parse_plan(dom.name, raw_text)
-                                            success = (
-                                                1 if parse.plan_text.strip() else 0
-                                            )
-
-                                            # VAL evaluation
-                                            t2 = t1
-                                            metrics = None
-                                            eval_error: str | None = None
-                                            if parse.plan_text.strip():
+                                                # LLM call
+                                                t0 = time.time()
+                                                raw_text = ""
+                                                llm_error: str | None = None
                                                 try:
-                                                    metrics = evaluate_with_val(
-                                                        domain_pddl=dom.domain_pddl,
-                                                        problem_pddl=dom.problems_dir
-                                                        / f"problem{pr.index}.pddl",
-                                                        plan_text=parse.plan_text,
-                                                        val_path=val_path,
-                                                        val_flags=val_flags,
-                                                        tolerance=tolerance,
-                                                        check_redundancy=False,
+                                                    raw_text = client.generate(
+                                                        LLMRequest(
+                                                            prompt=final_prompt,
+                                                            model=model_name,
+                                                            temperature=0.0,
+                                                            max_tokens=max_toks,
+                                                        )
                                                     )
                                                 except Exception as e:
-                                                    eval_error = str(e)
-                                                t2 = time.time()
-                                            else:
-                                                t2 = time.time()
+                                                    llm_error = str(e)
+                                                t1 = time.time()
 
-                                            # Write artifacts locally (always
-                                            # include raw response)
-                                            prob_out = (
-                                                session_out
-                                                / f"model={model_name}"
-                                                / f"domain={dom.name}"
-                                                / f"strategy={strat}"
-                                                / f"{pr.problem_id}"
-                                            )
-                                            arts = write_artifacts(
-                                                out_dir=prob_out,
-                                                raw_text=raw_text,
-                                                plan_text=parse.plan_text,
-                                                metrics=metrics,
-                                            )
+                                                # Parse plan
+                                                parse = parse_plan(
+                                                    dom.name, raw_text)
+                                                success = 1 if parse.plan_text.strip() else 0  # noqa: E501
 
-                                            # Log required artifact (raw
-                                            # response)
-                                            mlflow.log_artifact(
-                                                str(arts.raw_response_path)
-                                            )
+                                                # VAL evaluation
+                                                t2 = t1
+                                                metrics = None
+                                                eval_error: str | None = None
+                                                if parse.plan_text.strip():
+                                                    try:
+                                                        metrics = evaluate_with_val(
+                                                            domain_pddl=dom.domain_pddl,
+                                                            problem_pddl=dom.problems_dir /  # noqa: E501
+                                                            f"problem{
+                                                                pr.index}.pddl",
+                                                            plan_text=parse.plan_text,
+                                                            val_path=val_path,
+                                                            val_flags=val_flags,
+                                                            tolerance=tolerance,
+                                                            check_redundancy=False,
+                                                        )
+                                                    except Exception as e:
+                                                        eval_error = str(e)
+                                                    t2 = time.time()
+                                                else:
+                                                    t2 = time.time()
 
-                                            # Useful additional artifacts
-                                            mlflow.log_artifact(str(arts.plan_path))
-                                            mlflow.log_artifact(
-                                                str(arts.val_stdout_path)
-                                            )
-                                            mlflow.log_artifact(
-                                                str(arts.val_stderr_path)
-                                            )
-                                            mlflow.log_artifact(
-                                                str(arts.val_trace_path)
-                                            )
-
-                                            # Metrics (required + extras)
-                                            llm_dur = t1 - t0
-                                            eval_dur = (
-                                                (t2 - t1)
-                                                if parse.plan_text.strip()
-                                                else 0.0
-                                            )
-                                            total_dur = t2 - t0
-
-                                            result = EvalResult(
-                                                success=success,
-                                                llm_duration_seconds=llm_dur,
-                                                eval_duration_seconds=eval_dur,
-                                                total_duration_seconds=total_dur,
-                                                parse=parse,
-                                                metrics=metrics,
-                                                failure=llm_error or eval_error,
-                                                artifacts=arts,
-                                            )
-                                            mlflow.log_metrics(
-                                                result.to_mlflow_metrics()
-                                            )
-
-                                            # Extra scalar params/metrics
-                                            if pr.optimal_cost is not None:
-                                                mlflow.log_param(
-                                                    "optimal_cost", pr.optimal_cost
+                                                # Write artifacts locally
+                                                # (always include raw response)
+                                                prob_out = (
+                                                    session_out
+                                                    / f"model={model_name}"
+                                                    / f"domain={dom.name}"
+                                                    / f"strategy={strat}"
+                                                    / f"{pr.problem_id}"
                                                 )
-                                                if (
-                                                    metrics
-                                                    and metrics.valid
-                                                    and metrics.cost_value
-                                                    and metrics.cost_value > 0
-                                                ):
-                                                    mlflow.log_metric(
-                                                        "score_opt_over_cost",
-                                                        float(pr.optimal_cost)
-                                                        / float(metrics.cost_value),
+                                                arts = write_artifacts(
+                                                    out_dir=prob_out,
+                                                    raw_text=raw_text,
+                                                    plan_text=parse.plan_text,
+                                                    metrics=metrics,
+                                                )
+
+                                                # Log required artifact (raw
+                                                # response)
+                                                mlflow.log_artifact(
+                                                    str(arts.raw_response_path))
+
+                                                # Useful additional artifacts
+                                                mlflow.log_artifact(
+                                                    str(arts.plan_path))
+                                                mlflow.log_artifact(
+                                                    str(arts.val_stdout_path))
+                                                mlflow.log_artifact(
+                                                    str(arts.val_stderr_path))
+                                                mlflow.log_artifact(
+                                                    str(arts.val_trace_path))
+
+                                                # Metrics (required + extras)
+                                                llm_dur = t1 - t0
+                                                eval_dur = (
+                                                    t2 - t1) if parse.plan_text.strip() else 0.0  # noqa: E501
+                                                total_dur = t2 - t0
+
+                                                result = EvalResult(
+                                                    success=success,
+                                                    llm_duration_seconds=llm_dur,
+                                                    eval_duration_seconds=eval_dur,
+                                                    total_duration_seconds=total_dur,
+                                                    parse=parse,
+                                                    metrics=metrics,
+                                                    failure=llm_error or eval_error,
+                                                    artifacts=arts,
+                                                )
+                                                mlflow.log_metrics(
+                                                    result.to_mlflow_metrics())
+
+                                                # Extra scalar params/metrics
+                                                if pr.optimal_cost is not None:
+                                                    mlflow.log_param(
+                                                        "optimal_cost", pr.optimal_cost)
+                                                    if (
+                                                        metrics
+                                                        and metrics.valid
+                                                        and metrics.cost_value
+                                                        and metrics.cost_value > 0
+                                                    ):
+                                                        mlflow.log_metric(
+                                                            "score_opt_over_cost",
+                                                            float(
+                                                                pr.optimal_cost) / float(metrics.cost_value),  # noqa: E501
+                                                        )
+
+                                                # Error visibility
+                                                if llm_error:
+                                                    mlflow.set_tag(
+                                                        "llm_error", llm_error[:5000])
+                                                if eval_error:
+                                                    mlflow.set_tag(
+                                                        "eval_error", eval_error[:5000])
+                                                if parse.parse_errors:
+                                                    mlflow.set_tag(
+                                                        "parse_errors",
+                                                        "\n".join(parse.parse_errors)[
+                                                            :5000],
+                                                    )
+                                                if metrics and metrics.failure_reason:
+                                                    mlflow.set_tag(
+                                                        "val_failure_reason",
+                                                        metrics.failure_reason,
                                                     )
 
-                                            # Error visibility
-                                            if llm_error:
-                                                mlflow.set_tag(
-                                                    "llm_error", llm_error[:5000]
-                                                )
-                                            if eval_error:
-                                                mlflow.set_tag(
-                                                    "eval_error", eval_error[:5000]
-                                                )
-                                            if parse.parse_errors:
-                                                mlflow.set_tag(
-                                                    "parse_errors",
-                                                    "\n".join(parse.parse_errors)[
-                                                        :5000
-                                                    ],
-                                                )
-                                            if metrics and metrics.failure_reason:
-                                                mlflow.set_tag(
-                                                    "val_failure_reason",
-                                                    metrics.failure_reason,
-                                                )
+                                            progress.advance(t_strategy, 1)
+                                            progress.advance(t_domain, 1)
+                                            progress.advance(t_model, 1)
+                                            progress.advance(t_all, 1)
+
+                phase_update(progress, t_phase, "Idle")
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -546,8 +649,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         action="store_true",
         help=(
             "Allow running multiple --models against a single --base-url in "
-            "manual mode. Not recommended unless your endpoint truly hosts "
-            "multiple models."
+            "manual mode. "
+            "Not recommended unless your endpoint truly hosts multiple models."
         ),
     )
     parser.add_argument(
@@ -594,8 +697,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         type=str,
         default="-v",
         help=(
-            "VAL flags, space-separated (default: '-v'). Avoid '-e' for "
-            "stability unless you know it's safe."
+            "VAL flags, space-separated (default: '-v'). Avoid '-e' for stability "
+            "unless you know it's safe."
         ),
     )
     parser.add_argument(
@@ -638,11 +741,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     git = get_git_info()
-    examples_dir = (
-        Path(args.examples_dir)
-        if args.examples_dir
-        else Path(git.repo_root) / "examples"
-    )
+    examples_dir = Path(
+        args.examples_dir) if args.examples_dir else Path(
+        git.repo_root) / "examples"
 
     if args.domains:
         domains = [d.strip() for d in args.domains.split(",") if d.strip()]
@@ -685,9 +786,9 @@ def main(argv: Sequence[str] | None = None) -> None:
                 file=sys.stderr,
             )
             models = detected
+
     strategies = [s.strip() for s in args.strategies.split(",") if s.strip()]
     out_dir = Path(args.out_dir)
-
     val_flags = tuple([x for x in args.val_flags.split() if x.strip()])
 
     run_suite(

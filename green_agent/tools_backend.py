@@ -422,7 +422,7 @@ def list_action_types_nl(domain: str) -> str:
     return "\n".join(lines).strip()
 
 
-def get_action_type_nl(domain: str, action_name: str) -> str:
+def describe_action(domain: str, action_name: str) -> str:
     action_map = _get_action_map(domain)
     aname = (action_name or "").strip().lower()
     if aname not in action_map:

@@ -1,7 +1,7 @@
 from openai import OpenAI
 
-BASE_URL="http://localhost:5679/v1"
-MODEL="Qwen2.5-72B-Instruct"
+BASE_URL = "http://localhost:5679/v1"
+MODEL = "Qwen3-VL-30B-A3B-Thinking"
 
 client = OpenAI(base_url=BASE_URL, api_key="EMPTY")
 
@@ -17,7 +17,7 @@ except Exception as e:
 try:
     r = client.chat.completions.create(
         model=MODEL,
-        messages=[{"role":"user","content":"Reply with exactly: OK"}],
+        messages=[{"role": "user", "content": "Reply with exactly: OK"}],
         temperature=0,
         max_tokens=10,
     )

@@ -1,0 +1,21 @@
+{
+  "airport1": "loc_00d56d",
+  "airport2": "loc_0508bc",
+  "city1": "cit_1bce23",
+  "city2": "cit_4ed853",
+  "loc1": "loc_174178",
+  "loc2": "loc_568dd1",
+  "p1": "pac_e7813b",
+  "p10": "pac_2bce98",
+  "p2": "pac_342fd4",
+  "p3": "pac_71c170",
+  "p4": "pac_882714",
+  "p5": "pac_bc8807",
+  "p6": "pac_a3352d",
+  "p7": "pac_39acae",
+  "p8": "pac_916280",
+  "p9": "pac_238518",
+  "plane1": "air_4f77ec",
+  "truck1": "tru_b8d27c",
+  "truck2": "tru_77e50e"
+}

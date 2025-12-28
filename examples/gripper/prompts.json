@@ -1,5 +1,5 @@
 {
-  "domain_prompt": "You are a planning agent in a simplified **Gripper** world (a classic IPC planning domain).\n\nScenario:\n- There is one robot that can move between rooms.\n- The robot has **two grippers** (g1 and g2). Each gripper can hold at most one ball.\n- A ball is either in a room or being carried in exactly one gripper.\n\nLegal actions (use these exact action names):\n1) move FROM TO\n   - Preconditions: the robot is in room FROM.\n   - Effects: the robot is now in room TO.\n2) pick BALL ROOM GRIPPER\n   - Preconditions: the robot is in ROOM; BALL is in ROOM; GRIPPER is free.\n   - Effects: BALL is carried in GRIPPER; GRIPPER is no longer free; BALL is no longer in ROOM.\n3) drop BALL ROOM GRIPPER\n   - Preconditions: the robot is in ROOM; BALL is carried in GRIPPER.\n   - Effects: BALL is placed in ROOM; GRIPPER becomes free.\n\nInvariants / reminders:\n- You can only pick up balls in the room where the robot currently is.\n- To transport a ball to another room you must: pick -> move -> drop.\n- You may carry up to two balls at a time (one per gripper).\n- Try to minimize the number of actions.\n\nOUTPUT REQUIREMENTS (IMPORTANT):\nReturn ONLY a fenced code block containing one action per line, in the following machine-readable format:\n- (move FROM TO)\n- (pick BALL ROOM GRIPPER)\n- (drop BALL ROOM GRIPPER)\n\nUse exactly the object names provided in the task (e.g., room1, room2, b1, g1).\nNo numbering, no explanations, no extra text.\n\nExample:\n```\n(pick b1 room1 g1)\n(pick b2 room1 g2)\n(move room1 room2)\n(drop b1 room2 g1)\n(drop b2 room2 g2)\n```",
+  "domain_prompt": "You are a planning agent in a simplified **Gripper** world (a classic IPC planning domain).\n\nScenario:\n- There is one robot that can move between rooms.\n- The robot has **two grippers** (gri_32fce4 and gri_42e92a). Each gripper can hold at most one ball.\n- A ball is either in a room or being carried in exactly one gripper.\n\nLegal actions (use these exact action names):\n1) move FROM TO\n   - Preconditions: the robot is in room FROM.\n   - Effects: the robot is now in room TO.\n2) pick BALL ROOM GRIPPER\n   - Preconditions: the robot is in ROOM; BALL is in ROOM; GRIPPER is free.\n   - Effects: BALL is carried in GRIPPER; GRIPPER is no longer free; BALL is no longer in ROOM.\n3) drop BALL ROOM GRIPPER\n   - Preconditions: the robot is in ROOM; BALL is carried in GRIPPER.\n   - Effects: BALL is placed in ROOM; GRIPPER becomes free.\n\nInvariants / reminders:\n- You can only pick up balls in the room where the robot currently is.\n- To transport a ball to another room you must: pick -> move -> drop.\n- You may carry up to two balls at a time (one per gripper).\n- Try to minimize the number of actions.\n\nOUTPUT REQUIREMENTS (IMPORTANT):\nReturn ONLY a fenced code block containing one action per line, in the following machine-readable format:\n- (move FROM TO)\n- (pick BALL ROOM GRIPPER)\n- (drop BALL ROOM GRIPPER)\n\nUse exactly the object names provided in the task (e.g., roo_bcabae, roo_59c817, bal_07e7cd, gri_32fce4).\nNo numbering, no explanations, no extra text.\n\nExample:\n```\n(pick bal_07e7cd roo_bcabae gri_32fce4)\n(pick bal_e201c6 roo_bcabae gri_42e92a)\n(move roo_bcabae roo_59c817)\n(drop bal_07e7cd roo_59c817 gri_32fce4)\n(drop bal_e201c6 roo_59c817 gri_42e92a)\n```",
   "actions": [
     {
       "name": "move",
@@ -84,15 +84,15 @@
   "problems": [
     {
       "id": "p01",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1.",
-        "goal": "All balls are in room2: b1."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -100,7 +100,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -108,7 +108,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -116,7 +116,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -124,12 +124,12 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -138,15 +138,15 @@
     },
     {
       "id": "p02",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2.",
-        "goal": "All balls are in room2: b1, b2."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -154,7 +154,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -162,7 +162,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -170,7 +170,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -178,21 +178,21 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -201,15 +201,15 @@
     },
     {
       "id": "p03",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6, bal_58c0e0.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3.",
-        "goal": "All balls are in room2: b1, b2, b3."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -217,7 +217,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -225,7 +225,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -233,7 +233,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -241,30 +241,30 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b3",
+          "name": "bal_58c0e0",
           "kind": "ball",
-          "summary": "Ball b3.",
+          "summary": "Ball bal_58c0e0.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -273,15 +273,15 @@
     },
     {
       "id": "p04",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4.",
-        "goal": "All balls are in room2: b1, b2, b3, b4."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -289,7 +289,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -297,7 +297,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -305,7 +305,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -313,39 +313,39 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b3",
+          "name": "bal_58c0e0",
           "kind": "ball",
-          "summary": "Ball b3.",
+          "summary": "Ball bal_58c0e0.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b4",
+          "name": "bal_a03846",
           "kind": "ball",
-          "summary": "Ball b4.",
+          "summary": "Ball bal_a03846.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -354,15 +354,15 @@
     },
     {
       "id": "p05",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5.",
-        "goal": "All balls are in room2: b1, b2, b3, b4, b5."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -370,7 +370,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -378,7 +378,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -386,7 +386,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -394,48 +394,48 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b3",
+          "name": "bal_58c0e0",
           "kind": "ball",
-          "summary": "Ball b3.",
+          "summary": "Ball bal_58c0e0.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b4",
+          "name": "bal_a03846",
           "kind": "ball",
-          "summary": "Ball b4.",
+          "summary": "Ball bal_a03846.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b5",
+          "name": "bal_d17358",
           "kind": "ball",
-          "summary": "Ball b5.",
+          "summary": "Ball bal_d17358.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -444,15 +444,15 @@
     },
     {
       "id": "p06",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6.",
-        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -460,7 +460,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -468,7 +468,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -476,7 +476,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -484,57 +484,57 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b3",
+          "name": "bal_58c0e0",
           "kind": "ball",
-          "summary": "Ball b3.",
+          "summary": "Ball bal_58c0e0.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b4",
+          "name": "bal_a03846",
           "kind": "ball",
-          "summary": "Ball b4.",
+          "summary": "Ball bal_a03846.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b5",
+          "name": "bal_d17358",
           "kind": "ball",
-          "summary": "Ball b5.",
+          "summary": "Ball bal_d17358.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b6",
+          "name": "bal_f061eb",
           "kind": "ball",
-          "summary": "Ball b6.",
+          "summary": "Ball bal_f061eb.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -543,15 +543,15 @@
     },
     {
       "id": "p07",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6, b7.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6, b7.",
-        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6, b7."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -559,7 +559,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -567,7 +567,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -575,7 +575,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -583,66 +583,66 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b3",
+          "name": "bal_58c0e0",
           "kind": "ball",
-          "summary": "Ball b3.",
+          "summary": "Ball bal_58c0e0.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b4",
+          "name": "bal_a03846",
           "kind": "ball",
-          "summary": "Ball b4.",
+          "summary": "Ball bal_a03846.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b5",
+          "name": "bal_d17358",
           "kind": "ball",
-          "summary": "Ball b5.",
+          "summary": "Ball bal_d17358.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b6",
+          "name": "bal_f061eb",
           "kind": "ball",
-          "summary": "Ball b6.",
+          "summary": "Ball bal_f061eb.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b7",
+          "name": "bal_d0c241",
           "kind": "ball",
-          "summary": "Ball b7.",
+          "summary": "Ball bal_d0c241.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -651,15 +651,15 @@
     },
     {
       "id": "p08",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6, b7, b8.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6, b7, b8.",
-        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6, b7, b8."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -667,7 +667,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -675,7 +675,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -683,7 +683,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -691,75 +691,75 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b3",
+          "name": "bal_58c0e0",
           "kind": "ball",
-          "summary": "Ball b3.",
+          "summary": "Ball bal_58c0e0.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b4",
+          "name": "bal_a03846",
           "kind": "ball",
-          "summary": "Ball b4.",
+          "summary": "Ball bal_a03846.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b5",
+          "name": "bal_d17358",
           "kind": "ball",
-          "summary": "Ball b5.",
+          "summary": "Ball bal_d17358.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b6",
+          "name": "bal_f061eb",
           "kind": "ball",
-          "summary": "Ball b6.",
+          "summary": "Ball bal_f061eb.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b7",
+          "name": "bal_d0c241",
           "kind": "ball",
-          "summary": "Ball b7.",
+          "summary": "Ball bal_d0c241.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b8",
+          "name": "bal_1a5af3",
           "kind": "ball",
-          "summary": "Ball b8.",
+          "summary": "Ball bal_1a5af3.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -768,15 +768,15 @@
     },
     {
       "id": "p09",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6, b7, b8, b9.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6, b7, b8, b9.",
-        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6, b7, b8, b9."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -784,7 +784,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -792,7 +792,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -800,7 +800,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -808,84 +808,84 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b3",
+          "name": "bal_58c0e0",
           "kind": "ball",
-          "summary": "Ball b3.",
+          "summary": "Ball bal_58c0e0.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b4",
+          "name": "bal_a03846",
           "kind": "ball",
-          "summary": "Ball b4.",
+          "summary": "Ball bal_a03846.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b5",
+          "name": "bal_d17358",
           "kind": "ball",
-          "summary": "Ball b5.",
+          "summary": "Ball bal_d17358.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b6",
+          "name": "bal_f061eb",
           "kind": "ball",
-          "summary": "Ball b6.",
+          "summary": "Ball bal_f061eb.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b7",
+          "name": "bal_d0c241",
           "kind": "ball",
-          "summary": "Ball b7.",
+          "summary": "Ball bal_d0c241.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b8",
+          "name": "bal_1a5af3",
           "kind": "ball",
-          "summary": "Ball b8.",
+          "summary": "Ball bal_1a5af3.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b9",
+          "name": "bal_4eb1be",
           "kind": "ball",
-          "summary": "Ball b9.",
+          "summary": "Ball bal_4eb1be.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],
@@ -894,15 +894,15 @@
     },
     {
       "id": "p10",
-      "prompt": "Rooms: room1, room2. Grippers: g1, g2. Balls: b1, b2, b3, b4, b5, b6, b7, b8, b9, b10.\nInitial: the robot is in room1; g1 and g2 are free; all balls are in room1.\nGoal: all balls must end up in room2.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
+      "prompt": "Rooms: roo_bcabae, roo_59c817. Grippers: gri_32fce4, gri_42e92a. Balls: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be, bal_072e86.\nInitial: the robot is in roo_bcabae; gri_32fce4 and gri_42e92a are free; all balls are in roo_bcabae.\nGoal: all balls must end up in roo_59c817.\n\nOUTPUT: Only a fenced code block with one action per line using (move FROM TO), (pick BALL ROOM GRIPPER), (drop BALL ROOM GRIPPER). Use the object names exactly; no extra text.",
       "overview": {
-        "description": "Transport all balls from room1 to room2 using a two-gripper robot.",
-        "initial_state": "Robot in room1; g1 and g2 are free; balls in room1: b1, b2, b3, b4, b5, b6, b7, b8, b9, b10.",
-        "goal": "All balls are in room2: b1, b2, b3, b4, b5, b6, b7, b8, b9, b10."
+        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
+        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be, bal_072e86.",
+        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be, bal_072e86."
       },
       "objects": [
         {
-          "name": "room1",
+          "name": "roo_bcabae",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -910,7 +910,7 @@
           }
         },
         {
-          "name": "room2",
+          "name": "roo_59c817",
           "kind": "room",
           "summary": "A room.",
           "attributes": {
@@ -918,7 +918,7 @@
           }
         },
         {
-          "name": "g1",
+          "name": "gri_32fce4",
           "kind": "gripper",
           "summary": "Robot gripper 1.",
           "attributes": {
@@ -926,7 +926,7 @@
           }
         },
         {
-          "name": "g2",
+          "name": "gri_42e92a",
           "kind": "gripper",
           "summary": "Robot gripper 2.",
           "attributes": {
@@ -934,93 +934,93 @@
           }
         },
         {
-          "name": "b1",
+          "name": "bal_07e7cd",
           "kind": "ball",
-          "summary": "Ball b1.",
+          "summary": "Ball bal_07e7cd.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b2",
+          "name": "bal_e201c6",
           "kind": "ball",
-          "summary": "Ball b2.",
+          "summary": "Ball bal_e201c6.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b3",
+          "name": "bal_58c0e0",
           "kind": "ball",
-          "summary": "Ball b3.",
+          "summary": "Ball bal_58c0e0.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b4",
+          "name": "bal_a03846",
           "kind": "ball",
-          "summary": "Ball b4.",
+          "summary": "Ball bal_a03846.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b5",
+          "name": "bal_d17358",
           "kind": "ball",
-          "summary": "Ball b5.",
+          "summary": "Ball bal_d17358.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b6",
+          "name": "bal_f061eb",
           "kind": "ball",
-          "summary": "Ball b6.",
+          "summary": "Ball bal_f061eb.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b7",
+          "name": "bal_d0c241",
           "kind": "ball",
-          "summary": "Ball b7.",
+          "summary": "Ball bal_d0c241.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b8",
+          "name": "bal_1a5af3",
           "kind": "ball",
-          "summary": "Ball b8.",
+          "summary": "Ball bal_1a5af3.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b9",
+          "name": "bal_4eb1be",
           "kind": "ball",
-          "summary": "Ball b9.",
+          "summary": "Ball bal_4eb1be.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         },
         {
-          "name": "b10",
+          "name": "bal_072e86",
           "kind": "ball",
-          "summary": "Ball b10.",
+          "summary": "Ball bal_072e86.",
           "attributes": {
-            "start_room": "room1",
-            "goal_room": "room2"
+            "start_room": "roo_bcabae",
+            "goal_room": "roo_59c817"
           }
         }
       ],

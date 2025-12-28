@@ -17,3 +17,6 @@ metric-ff-crossplatform
 green_agent/metric-ff-crossplatform
 green_agent/metric-ff-crossplatform
 green_agent/metric-ff-crossplatform
+
+out_bench/*
+mlflow_reports/*

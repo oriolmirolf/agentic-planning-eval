@@ -1,31 +1,31 @@
 (define (problem gripper-p07)
   (:domain gripper)
   (:objects
-    room1 room2 - room
-    g1 g2 - gripper
-    b1 b2 b3 b4 b5 b6 b7 - ball
+    roo_bcabae roo_59c817 - room
+    gri_32fce4 gri_42e92a - gripper
+    bal_07e7cd bal_e201c6 bal_58c0e0 bal_a03846 bal_d17358 bal_f061eb bal_d0c241 - ball
   )
   (:init
     (= (total-cost) 0)
-    (at-robot room1)
-    (free g1)
-    (free g2)
-    (at b1 room1)
-(at b2 room1)
-(at b3 room1)
-(at b4 room1)
-(at b5 room1)
-(at b6 room1)
-(at b7 room1)
+    (at-robot roo_bcabae)
+    (free gri_32fce4)
+    (free gri_42e92a)
+    (at bal_07e7cd roo_bcabae)
+(at bal_e201c6 roo_bcabae)
+(at bal_58c0e0 roo_bcabae)
+(at bal_a03846 roo_bcabae)
+(at bal_d17358 roo_bcabae)
+(at bal_f061eb roo_bcabae)
+(at bal_d0c241 roo_bcabae)
   )
   (:goal (and
-    (at b1 room2)
-    (at b2 room2)
-    (at b3 room2)
-    (at b4 room2)
-    (at b5 room2)
-    (at b6 room2)
-    (at b7 room2)
+    (at bal_07e7cd roo_59c817)
+    (at bal_e201c6 roo_59c817)
+    (at bal_58c0e0 roo_59c817)
+    (at bal_a03846 roo_59c817)
+    (at bal_d17358 roo_59c817)
+    (at bal_f061eb roo_59c817)
+    (at bal_d0c241 roo_59c817)
   ))
   (:metric minimize (total-cost))
 )

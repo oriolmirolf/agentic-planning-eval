@@ -6,7 +6,7 @@ from .tools_backend import (  # noqa: F401
     describe_object,
     describe_object_nl,
     get_action_schemas,
-    get_action_type_nl,
+    describe_action,
     get_history_nl,
     get_state_nl,
     get_task_overview,
