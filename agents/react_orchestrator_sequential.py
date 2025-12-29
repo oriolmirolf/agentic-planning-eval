@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re  # <--- FIXED: Added missing import
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -415,8 +416,7 @@ def main() -> None:
                     if not is_valid: status_str = "[bold red]CRASH[/]"
                     progress.update(task_id, advance=1, status=f"Last: {domain} p{index} -> {status_str}")
                     
-                    # Optional: Print detailed panel for debugging
-                    # (Comment out if you want pure progress bar)
+                    # Panel
                     grid = f"Steps: {steps_taken}/{optimal_cost} | Time: {duration:.1f}s | Score: {score:.2f}"
                     if error_msg: grid += f"\nError: {error_msg[:100]}"
                     console.print(Panel(grid, title=f"{domain} p{index:02d} - {status_str}", border_style="green" if is_success else "red"))
