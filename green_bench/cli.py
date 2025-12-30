@@ -24,7 +24,7 @@ from rich.progress import (
 from .data import DomainSpec, discover_domains, load_domain
 from .mlflow_utils import get_git_info, init_mlflow, set_required_git_tag
 from .openai_client import LLMRequest, OpenAICompatClient, try_list_models
-from .prompting import STRATEGIES, build_prompt
+from .prompting import STRATEGIES, run_strategy
 from .vecinf_adapter import VecInfLauncher
 
 # -----------------------------
@@ -399,8 +399,7 @@ def run_suite(
                                 for strat in strategies:
                                     if strat not in STRATEGIES:
                                         raise ValueError(
-                                            f"Unknown strategy: {strat}. Known: {
-                                                sorted(STRATEGIES)}"
+                                            f"Unknown strategy: {strat}. Known: {sorted(STRATEGIES)}"
                                         )
 
                                     # Reset per-strategy progress (within this
@@ -460,27 +459,23 @@ def run_suite(
                                                     mlflow.set_tag(
                                                         "difficulty", pr.difficulty)
 
-                                                # Build the final prompt for
-                                                # this strategy
-                                                final_prompt = build_prompt(
-                                                    strat,
-                                                    domain_prompt=dom.domain_prompt,
-                                                    problem_prompt=pr.prompt,
-                                                )
-
-                                                # LLM call
+                                                # Strategy execution
                                                 t0 = time.time()
                                                 raw_text = ""
+                                                trace_text: str | None = None
                                                 llm_error: str | None = None
                                                 try:
-                                                    raw_text = client.generate(
-                                                        LLMRequest(
-                                                            prompt=final_prompt,
-                                                            model=model_name,
-                                                            temperature=0.0,
-                                                            max_tokens=max_toks,
-                                                        )
+                                                    out = run_strategy(
+                                                        strat,
+                                                        client=client,
+                                                        model_name=model_name,
+                                                        domain_prompt=dom.domain_prompt,
+                                                        problem_prompt=pr.prompt,
+                                                        temperature=0.0,
+                                                        max_tokens=max_toks,
                                                     )
+                                                    raw_text = out.final_text
+                                                    trace_text = out.trace
                                                 except Exception as e:
                                                     llm_error = str(e)
                                                 t1 = time.time()
@@ -528,6 +523,12 @@ def run_suite(
                                                     plan_text=parse.plan_text,
                                                     metrics=metrics,
                                                 )
+
+                                                if trace_text:
+                                                    prob_out.mkdir(parents=True, exist_ok=True)
+                                                    trace_path = prob_out / f"trace.txt"
+                                                    trace_path.write_text(trace_text, encoding="utf-8")
+                                                    mlflow.log_artifact(str(trace_path))
 
                                                 # Log required artifact (raw
                                                 # response)
