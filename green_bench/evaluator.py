@@ -6,7 +6,7 @@ from pathlib import Path
 
 from green_agent.metrics import PlanMetrics, compute_metrics
 from green_agent.plan_parser import extract_plan
-from green_agent.tools_backend import compile_nl_plan
+from green_agent.tools_backend import compile_plan
 
 
 @dataclass(frozen=True)

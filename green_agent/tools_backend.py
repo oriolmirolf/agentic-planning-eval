@@ -88,9 +88,9 @@ TOOL_SIGNATURES: dict[str, ToolSignature] = {
     ),
     "get_state": ToolSignature(
         name="get_state",
-        inputs=[SigField("max_facts", "int", "Max facts to display (default: 200).")],
+        inputs=[], 
         output=SigField("state", "str", "Current world facts."),
-        doc="Inspect the current state of the world. Use this to verify if your actions had the desired effect.",
+        doc="Inspect the world state. Use this to check preconditions (e.g. is a block clear?) to avoid fatal errors.",
     ),
     "submit": ToolSignature(
         name="submit",
