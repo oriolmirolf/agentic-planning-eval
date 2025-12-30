@@ -478,6 +478,10 @@ def run_suite(
                                                     trace_text = out.trace
                                                 except Exception as e:
                                                     llm_error = str(e)
+                                                    raw_text = f"[LLM_ERROR]\n{llm_error}\n"
+                                                    trace_text = f"=== LLM_ERROR ===\n{llm_error}\n"
+                                                    print(f"[LLM_ERROR] {llm_error}", file=sys.stderr)
+
                                                 t1 = time.time()
 
                                                 # Parse plan
@@ -711,7 +715,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--mlflow-uri",
         type=str,
-        default=None,
+        default=os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"),
         help="Optional MLflow tracking URI. If omitted, uses MLflow defaults/env.",
     )
     parser.add_argument(

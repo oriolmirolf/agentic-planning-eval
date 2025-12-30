@@ -52,7 +52,6 @@ def _call(
     prompt: str,
     temperature: float,
     max_tokens: int,
-    stop: list[str] | None = None,
 ) -> str:
     return client.generate(
         LLMRequest(
@@ -60,7 +59,6 @@ def _call(
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
-            stop=stop
         )
     )
 
@@ -350,7 +348,7 @@ def _run_self_refine(
         trace_lines.append(f"=== self_refine: refined_response_round_{r} ===")
         trace_lines.append(current)
 
-        return StrategyOutput(final_text=current, trace="\n".join(trace_lines))
+    return StrategyOutput(final_text=current, trace="\n".join(trace_lines))
 
 
 # Tree of Thoughts (beam search)
