@@ -76,7 +76,7 @@ def parse_plan(domain_name: str, raw_model_text: str) -> ParseResult:
         )
 
     # Fallback: NL compilation
-    plan_txt2, errors = compile_nl_plan(domain_name, raw_model_text or "")
+    plan_txt2, errors = compile_plan(domain_name, raw_model_text or "")
     if plan_txt2.strip() and not errors:
         return ParseResult(
             plan_text=plan_txt2,

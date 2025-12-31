@@ -24,7 +24,7 @@ from rich.progress import (
 from .data import DomainSpec, discover_domains, load_domain
 from .mlflow_utils import get_git_info, init_mlflow, set_required_git_tag
 from .openai_client import LLMRequest, OpenAICompatClient, try_list_models
-from .prompting import STRATEGIES, build_prompt
+from .prompting import STRATEGIES, run_strategy
 from .vecinf_adapter import VecInfLauncher
 
 # -----------------------------
@@ -222,7 +222,10 @@ def run_suite(
     from .evaluator import EvalResult, evaluate_with_val, parse_plan, write_artifacts
 
     # MLflow setup
-    init_mlflow(experiment_name, tracking_uri=mlflow_tracking_uri)
+    if mlflow_tracking_uri:
+        mlflow.set_tracking_uri(mlflow_tracking_uri)
+    mlflow.set_experiment(experiment_name)
+
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     session_out = out_dir / f"planning_benchmark_{stamp}"
@@ -399,8 +402,7 @@ def run_suite(
                                 for strat in strategies:
                                     if strat not in STRATEGIES:
                                         raise ValueError(
-                                            f"Unknown strategy: {strat}. Known: {
-                                                sorted(STRATEGIES)}"
+                                            f"Unknown strategy: {strat}. Known: {sorted(STRATEGIES)}"
                                         )
 
                                     # Reset per-strategy progress (within this
@@ -460,29 +462,29 @@ def run_suite(
                                                     mlflow.set_tag(
                                                         "difficulty", pr.difficulty)
 
-                                                # Build the final prompt for
-                                                # this strategy
-                                                final_prompt = build_prompt(
-                                                    strat,
-                                                    domain_prompt=dom.domain_prompt,
-                                                    problem_prompt=pr.prompt,
-                                                )
-
-                                                # LLM call
+                                                # Strategy execution
                                                 t0 = time.time()
                                                 raw_text = ""
+                                                trace_text: str | None = None
                                                 llm_error: str | None = None
                                                 try:
-                                                    raw_text = client.generate(
-                                                        LLMRequest(
-                                                            prompt=final_prompt,
-                                                            model=model_name,
-                                                            temperature=0.0,
-                                                            max_tokens=max_toks,
-                                                        )
+                                                    out = run_strategy(
+                                                        strat,
+                                                        client=client,
+                                                        model_name=model_name,
+                                                        domain_prompt=dom.domain_prompt,
+                                                        problem_prompt=pr.prompt,
+                                                        temperature=0.0,
+                                                        max_tokens=max_toks,
                                                     )
+                                                    raw_text = out.final_text
+                                                    trace_text = out.trace
                                                 except Exception as e:
                                                     llm_error = str(e)
+                                                    raw_text = f"[LLM_ERROR]\n{llm_error}\n"
+                                                    trace_text = f"=== LLM_ERROR ===\n{llm_error}\n"
+                                                    print(f"[LLM_ERROR] {llm_error}", file=sys.stderr)
+
                                                 t1 = time.time()
 
                                                 # Parse plan
@@ -529,6 +531,12 @@ def run_suite(
                                                     metrics=metrics,
                                                 )
 
+                                                if trace_text:
+                                                    prob_out.mkdir(parents=True, exist_ok=True)
+                                                    trace_path = prob_out / f"trace.txt"
+                                                    trace_path.write_text(trace_text, encoding="utf-8")
+                                                    mlflow.log_artifact(str(trace_path))
+
                                                 # Log required artifact (raw
                                                 # response)
                                                 mlflow.log_artifact(
@@ -562,6 +570,65 @@ def run_suite(
                                                 )
                                                 mlflow.log_metrics(
                                                     result.to_mlflow_metrics())
+
+                                                steps_taken = (
+                                                    len([ln for ln in parse.plan_text.splitlines() if ln.strip()])
+                                                    if parse.plan_text and parse.plan_text.strip()
+                                                    else 0
+                                                )
+                                                optimal_steps = float(pr.optimal_cost or 0)
+
+                                                # "valid" in this benchmark context means VAL-valid plan
+                                                is_valid = 1.0 if (metrics is not None and bool(getattr(metrics, "valid", False))) else 0.0
+
+                                                # "success" means: valid AND goal reached (field name varies by metrics impl)
+                                                goal_reached = False
+                                                if metrics is not None:
+                                                    goal_reached = bool(
+                                                        getattr(metrics, "goal_reached", False)
+                                                        or getattr(metrics, "success", False)
+                                                        or getattr(metrics, "accepted", False)
+                                                    )
+                                                is_success = 1.0 if (is_valid > 0.0 and goal_reached) else 0.0
+
+                                                score = 0.0
+                                                if is_success > 0.0 and steps_taken > 0 and optimal_steps > 0:
+                                                    score = optimal_steps / float(steps_taken)
+                                                    if score > 1.0:
+                                                        score = 1.0
+
+                                                wall_time = float(total_dur)
+
+                                                # Best-effort error categorization (since CLI isn't tool-interactive)
+                                                # - syntax: parser errors (and/or empty plan)
+                                                # - hallucinated_action / precondition: inferred from VAL failure text
+                                                err_text = ""
+                                                if metrics is not None and getattr(metrics, "failure_reason", None):
+                                                    err_text = str(metrics.failure_reason).lower()
+                                                elif parse.parse_errors:
+                                                    err_text = "\n".join(parse.parse_errors).lower()
+
+                                                error_syntax = float(len(parse.parse_errors)) if parse.parse_errors else (1.0 if steps_taken == 0 else 0.0)
+                                                error_hallucinated_action = 1.0 if any(
+                                                    k in err_text for k in ["unknown operator", "unknown action", "not defined", "undefined"]
+                                                ) else 0.0
+                                                error_precondition = 1.0 if any(
+                                                    k in err_text for k in ["precondition", "not applicable", "cannot be applied"]
+                                                ) else 0.0
+
+                                                mlflow.log_metrics(
+                                                    {
+                                                        "is_valid": is_valid,
+                                                        "is_success": is_success,
+                                                        "steps_taken": float(steps_taken),
+                                                        "optimal_steps": float(optimal_steps),
+                                                        "score": float(score),
+                                                        "wall_time": float(wall_time),
+                                                        "error_syntax": float(error_syntax),
+                                                        "error_hallucinated_action": float(error_hallucinated_action),
+                                                        "error_precondition": float(error_precondition),
+                                                    }
+                                                )
 
                                                 # Extra scalar params/metrics
                                                 if pr.optimal_cost is not None:
@@ -710,7 +777,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument(
         "--mlflow-uri",
         type=str,
-        default=None,
+        default=os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"),
         help="Optional MLflow tracking URI. If omitted, uses MLflow defaults/env.",
     )
     parser.add_argument(
