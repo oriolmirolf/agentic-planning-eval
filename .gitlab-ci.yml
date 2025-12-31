@@ -1,4 +1,5 @@
 stages:
+  - sync
   - lint
   - test
 
@@ -12,13 +13,35 @@ cache:
   paths:
     - .venv/
 
+
 lint-check:
   stage: lint
   script:
     - uv run ruff format --check .
     - uv run ruff check .
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "schedule"
 
 unit-tests:
   stage: test
   script:
     - uv run pytest tests/ -v -m "not local_llm and not integration"
+  rules:
+    - if: $CI_PIPELINE_SOURCE != "schedule"
+
+mirror-from-github:
+  stage: sync
+  image: alpine/git  
+  variables:
+    GIT_STRATEGY: none
+  before_script: []  
+  script:
+    - git clone --mirror https://oauth2:${GITHUB_TOKEN}@github.com/YOUR_GITHUB_USERNAME/YOUR_GITHUB_REPO.git repo_mirror
+    
+    - cd repo_mirror
+    - git remote add gitlab_dest https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git
+    
+    - git push --no-verify --mirror gitlab_dest
+  
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
