@@ -151,6 +151,7 @@ def _ensure_single_codeblock(text: str) -> str:
         Rationale: models often put scratch/drafts earlier and the final answer last.
       - If no fenced block exists, wrap the raw text.
     """
+    return text
     raw = (text or "").strip()
     blocks = _CODEBLOCK_RE.findall(raw)
     if blocks:
