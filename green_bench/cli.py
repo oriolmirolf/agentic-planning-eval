@@ -49,6 +49,7 @@ DEFAULT_STRATEGIES = [
     "plan_and_solve",
     "step_back",
     "self_refine",
+    "tree_of_thought"
 ]
 
 DEFAULT_BASE_URL = (
@@ -204,6 +205,7 @@ def run_suite(
     base_url: str,
     base_url_map: dict[str, str],
     allow_shared_base_url: bool,
+    problem_indices: Sequence[int] | None = None,
     limit_problems: int | None = None,
 ) -> None:
     console = Console(stderr=True)
@@ -236,8 +238,13 @@ def run_suite(
 
     # --- Progress totals ---
     def n_problems(dom: DomainSpec) -> int:
-        return min(len(dom.problems), limit_problems) if limit_problems else len(
-            dom.problems)
+        selected = dom.problems
+        if problem_indices:
+            want = set(int(x) for x in problem_indices)
+            selected = [p for p in dom.problems if int(p.index) in want]
+        if limit_problems:
+            selected = selected[:limit_problems]
+        return len(selected)
 
     problems_by_domain: dict[str, int] = {
         d.name: n_problems(d) for d in domain_specs}
@@ -380,16 +387,22 @@ def run_suite(
 
                         # Per-domain loop
                         for dom in domain_specs:
-                            problems = dom.problems[:limit_problems] if limit_problems else dom.problems  # noqa: E501
+                            problem_specs = dom.problems
+                            if problem_indices:
+                                want = set(int(x) for x in problem_indices)
+                                problem_specs = [p for p in dom.problems if int(p.index) in want]
+                            if limit_problems:
+                                problem_specs = problem_specs[:limit_problems]
 
                             # Reset per-domain progress for this model
-                            domain_total = len(problems) * len(strategies)
+                            domain_total = len(problem_specs) * len(strategies)
                             progress.reset(t_domain, total=domain_total)
                             progress.update(
                                 t_domain,
                                 completed=0,
                                 description=f"Domain: {
-                                    dom.name}")
+                                    dom.name}"
+                            )
 
                             with mlflow_run(f"domain={dom.name}", nested=True):
                                 log_run_common_tags(
@@ -408,7 +421,7 @@ def run_suite(
                                     # Reset per-strategy progress (within this
                                     # domain)
                                     progress.reset(
-                                        t_strategy, total=len(problems))
+                                        t_strategy, total=len(problem_specs))
                                     progress.update(
                                         t_strategy,
                                         completed=0,
@@ -420,7 +433,7 @@ def run_suite(
                                             git_commit=git.commit, repo_dirty=git.dirty)
                                         mlflow.log_param("strategy", strat)
 
-                                        for pr in problems:
+                                        for pr in problem_specs:
                                             phase_update(
                                                 progress,
                                                 t_phase,
@@ -511,6 +524,7 @@ def run_suite(
                                                         )
                                                     except Exception as e:
                                                         eval_error = str(e)
+                                                        print(f"[LLM_ERROR] {e}")
                                                     t2 = time.time()
                                                 else:
                                                     t2 = time.time()
@@ -571,62 +585,31 @@ def run_suite(
                                                 mlflow.log_metrics(
                                                     result.to_mlflow_metrics())
 
-                                                steps_taken = (
-                                                    len([ln for ln in parse.plan_text.splitlines() if ln.strip()])
-                                                    if parse.plan_text and parse.plan_text.strip()
-                                                    else 0
-                                                )
-                                                optimal_steps = float(pr.optimal_cost or 0)
+                                                is_valid = 1.0 if (llm_error is None and eval_error is None) else 0.0
+                                                optimal_steps = float(pr.optimal_cost or 0.0)
 
-                                                # "valid" in this benchmark context means VAL-valid plan
-                                                is_valid = 1.0 if (metrics is not None and bool(getattr(metrics, "valid", False))) else 0.0
-
-                                                # "success" means: valid AND goal reached (field name varies by metrics impl)
-                                                goal_reached = False
                                                 if metrics is not None:
-                                                    goal_reached = bool(
-                                                        getattr(metrics, "goal_reached", False)
-                                                        or getattr(metrics, "success", False)
-                                                        or getattr(metrics, "accepted", False)
-                                                    )
-                                                is_success = 1.0 if (is_valid > 0.0 and goal_reached) else 0.0
+                                                    steps_taken = float(metrics.length)
+                                                    is_success = 1.0 if bool(metrics.valid) else 0.0
+                                                else:
+                                                    steps_taken = 0.0
+                                                    is_success = 0.0
 
                                                 score = 0.0
-                                                if is_success > 0.0 and steps_taken > 0 and optimal_steps > 0:
-                                                    score = optimal_steps / float(steps_taken)
+                                                if is_success > 0.0 and steps_taken > 0.0 and optimal_steps > 0.0:
+                                                    score = optimal_steps / steps_taken
                                                     if score > 1.0:
                                                         score = 1.0
 
                                                 wall_time = float(total_dur)
-
-                                                # Best-effort error categorization (since CLI isn't tool-interactive)
-                                                # - syntax: parser errors (and/or empty plan)
-                                                # - hallucinated_action / precondition: inferred from VAL failure text
-                                                err_text = ""
-                                                if metrics is not None and getattr(metrics, "failure_reason", None):
-                                                    err_text = str(metrics.failure_reason).lower()
-                                                elif parse.parse_errors:
-                                                    err_text = "\n".join(parse.parse_errors).lower()
-
-                                                error_syntax = float(len(parse.parse_errors)) if parse.parse_errors else (1.0 if steps_taken == 0 else 0.0)
-                                                error_hallucinated_action = 1.0 if any(
-                                                    k in err_text for k in ["unknown operator", "unknown action", "not defined", "undefined"]
-                                                ) else 0.0
-                                                error_precondition = 1.0 if any(
-                                                    k in err_text for k in ["precondition", "not applicable", "cannot be applied"]
-                                                ) else 0.0
-
                                                 mlflow.log_metrics(
                                                     {
                                                         "is_valid": is_valid,
                                                         "is_success": is_success,
-                                                        "steps_taken": float(steps_taken),
-                                                        "optimal_steps": float(optimal_steps),
-                                                        "score": float(score),
-                                                        "wall_time": float(wall_time),
-                                                        "error_syntax": float(error_syntax),
-                                                        "error_hallucinated_action": float(error_hallucinated_action),
-                                                        "error_precondition": float(error_precondition),
+                                                        "steps_taken": steps_taken,
+                                                        "optimal_steps": optimal_steps,
+                                                        "score": score,
+                                                        "wall_time": wall_time,
                                                     }
                                                 )
 
@@ -805,6 +788,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         help="Optional: only run the first N problems per domain (smoke test).",
     )
 
+    parser.add_argument(
+        "--problems",
+        nargs="*",
+        type=int,
+        default=None,
+        help="Optional: run only these problem indices (per domain), e.g. --problems 1 2 5",
+    )
+
+
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     git = get_git_info()
@@ -875,8 +867,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         base_url=base_url,
         base_url_map=base_url_map,
         allow_shared_base_url=bool(args.allow_shared_base_url),
+        problem_indices=args.problems,
         limit_problems=args.limit_problems,
     )
+
 
 
 if __name__ == "__main__":
