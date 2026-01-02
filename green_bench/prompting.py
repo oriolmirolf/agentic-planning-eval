@@ -1,64 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Callable
+from typing import Protocol
 import re
 
 from .openai_client import LLMRequest, OpenAICompatClient
 
 
 # Public Types
-SYSTEM_PROMPT = \
-"""
-SYSTEM
-You are an expert planner.
-
-You will receive:
-(1) a DOMAIN BRIEF describing the available actions and their required argument order, and
-(2) an INSTANCE BRIEF describing the concrete objects, initial state, and goal.
-
-Task:
-Produce a single valid, goal-reaching plan.
-
-Hard constraints:
-- Output MUST be a single fenced code block (triple backticks).
-- Inside the code block: one action per line, exactly in the form: action_name arg1 arg2 ...
-- Use ONLY action names that appear in the DOMAIN BRIEF (case-insensitive matching is allowed, but keep names consistent).
-- Use the EXACT argument order defined in the DOMAIN BRIEF.
-- Use ONLY object names that appear in the INSTANCE BRIEF (no renaming, no aliases, no added objects).
-- Do NOT include numbering, commentary, blank lines, or multiple alternative plans.
-- If you are unsure, make the safest progress: prefer actions that you can justify from the INSTANCE BRIEF.
-- Do NOT restate the task, the state, or the goal.
-
-If the instance is unsolvable under the given constraints, output exactly:
-```
-UNSOLVABLE
-```
-
-USER
-<domain_brief>
-{{DOMAIN_BRIEF_NL}}
-</domain_brief>
-
-<instance_brief>
-{{INSTANCE_BRIEF_NL}}
-</instance_brief>
-
-Return ONLY the plan as specified above. Example output:
-
-```
-action1 arg1 arg2
-action2 arg2 arg3 arg4
-...
-```
-"""
-
 
 @dataclass(frozen=True)
 class StrategyOutput:
     """
     final_text MUST satisfy the benchmark output contract:
-      - ONLY a fenced code block
+      - ONLY a fenced code block (triple backticks)
       - one action per line inside the block
     trace is optional and may include intermediate artifacts (plans, critiques, scores).
     """
@@ -90,42 +45,65 @@ class StrategySpec:
 def _join(*parts: str) -> str:
     return "\n\n".join([p.strip() for p in parts if (p or "").strip()]).strip()
 
-_OUTPUT_CONTRACT_REMINDER = """OUTPUT FORMAT (MANDATORY):
-- Reply with ONLY one fenced code block.
-- Inside the block: one action per line.
-- No prose before or after the code block.
+
+def _context(domain_prompt: str, problem_prompt: str) -> str:
+    # Neutral wrapper. Keep constant across all strategies.
+    return _join(
+        "You will receive:",
+        "(1) a DOMAIN BRIEF describing available actions and their required argument order, and",
+        "(2) a PROBLEM PROMPT describing concrete objects, initial state, and goal.",
+        "DOMAIN BRIEF:",
+        domain_prompt,
+        "PROBLEM PROMPT:",
+        problem_prompt,
+    )
+
+
+# Your exact output requirements (plus UNSOLVABLE convention)
+_OUTPUT_REQUIREMENTS = """OUTPUT REQUIREMENTS (MANDATORY):
+- Output MUST be a single fenced code block (triple backticks).
+- Inside the code block: one action per line, exactly in the form: action_name arg1 arg2 ...
+- Use ONLY action names that appear in the DOMAIN BRIEF (case-insensitive matching is allowed, but keep names consistent).
+- Use the EXACT argument order defined in the DOMAIN BRIEF.
+- Use ONLY object names that appear in the PROBLEM PROMPT (no renaming, no aliases, no added objects).
+- Do NOT include numbering, commentary, blank lines, or multiple alternative plans.
+- If you are unsure, make the safest progress: prefer actions that you can justify from the PROBLEM PROMPT.
+- Do NOT restate the task, the state, or the goal.
+- If the instance is unsolvable under the given constraints, output exactly:
+```UNSOLVABLE```
+(in a single fenced code block).
 """
 
 
-_CODEBLOCK_RE = re.compile(r"```(?:[a-zA-Z0-9_-]+)?\s*\n(.*?)\n?```", re.DOTALL)
-
-def _normalize_plan_only(text: str) -> str:
-    """
-    Best-effort normalization to enforce the benchmark output contract.
-    Returns ONLY one fenced code block.
-    """
-    raw = (text or "").strip()
-    m = _CODEBLOCK_RE.search(raw)
-    if m:
-        body = m.group(1).strip("\n")
-        return f"```\n{body}\n```"
-
-    # No fenced block: salvage action-like lines if possible
-    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
-    action_lines = [ln for ln in lines if ln.startswith("(")]
-    body = "\n".join(action_lines) if action_lines else raw
-    return f"```\n{body}\n```"
+def _final_prompt(
+    domain_prompt: str,
+    problem_prompt: str,
+    *,
+    technique: str | None = None,
+    extra: str | None = None,
+) -> str:
+    # Output requirements appear ONLY in final plan calls.
+    return _join(
+        _context(domain_prompt, problem_prompt),
+        technique or "",
+        extra or "",
+        _OUTPUT_REQUIREMENTS,
+    )
 
 
-def _extract_codeblock(text: str) -> str | None:
-    """
-    Return the *body* of the first fenced code block, or None if none exists.
-    """
-    raw = (text or "").strip()
-    m = _CODEBLOCK_RE.search(raw)
-    if not m:
-        return None
-    return (m.group(1) or "").strip("\n")
+def _aux_prompt(
+    domain_prompt: str,
+    problem_prompt: str,
+    *,
+    instruction: str,
+    extra: str | None = None,
+) -> str:
+    # Auxiliary steps MUST NOT include output requirements to avoid contamination.
+    return _join(
+        _context(domain_prompt, problem_prompt),
+        instruction,
+        extra or "",
+    )
 
 
 def _call(
@@ -146,29 +124,38 @@ def _call(
     )
 
 
-# Single Call Strategies
+_CODEBLOCK_RE = re.compile(r"```(?:[a-zA-Z0-9_-]+)?\s*\n(.*?)\n?```", re.DOTALL)
+
+def _ensure_single_codeblock(text: str) -> str:
+    raw = (text or "").strip()
+    m = _CODEBLOCK_RE.search(raw)
+    if m:
+        body = (m.group(1) or "").strip("\n")
+        return f"```\n{body}\n```"
+    return f"```\n{raw}\n```"
+
+
+# Strategies
 
 def _run_baseline(
-        client: OpenAICompatClient,
-        model_name: str,
-        domain_prompt: str,
-        problem_prompt: str,
-        temperature: float,
-        max_tokens: int,
+    client: OpenAICompatClient,
+    model_name: str,
+    domain_prompt: str,
+    problem_prompt: str,
+    temperature: float,
+    max_tokens: int,
 ) -> StrategyOutput:
-    trace_lines: list[str] = []
-    prompt = SYSTEM_PROMPT.replace("{{DOMAIN_BRIEF_NL}}", domain_prompt).replace("{{INSTANCE_BRIEF_NL}}", problem_prompt)
+    trace: list[str] = []
+    prompt = _final_prompt(domain_prompt, problem_prompt)
     raw = _call(client, model=model_name, prompt=prompt, temperature=temperature, max_tokens=max_tokens)
-    
-    trace_lines.append("=== baseline: prompt ===")
-    trace_lines.append(prompt)
-    trace_lines.append("=== baseline: raw_response ===")
-    trace_lines.append(raw)
-    # TODO: Normalize output contract?
-    return StrategyOutput(final_text=_normalize_plan_only(raw), trace="\n".join(trace_lines))
 
+    trace.append("=== baseline: prompt ===")
+    trace.append(prompt)
+    trace.append("=== baseline: raw ===")
+    trace.append(raw)
 
-# Two-Call Strategies
+    return StrategyOutput(final_text=_ensure_single_codeblock(raw), trace="\n".join(trace))
+
 
 def _run_zero_shot_cot(
     client: OpenAICompatClient,
@@ -179,54 +166,25 @@ def _run_zero_shot_cot(
     max_tokens: int,
 ) -> StrategyOutput:
     """
-    Large Language Models are Zero-Shot Reasoners (Kojima et al., 2022).
+    Zero-shot CoT (faithful, single-call):
+    canonical intervention: "Let's think step by step."
+    Adaptation: think internally, but DO NOT output reasoning (must satisfy plan-only contract).
     """
-    trace_lines: list[str] = []
-    # TODO: Tweak the prompt.
-    draft_prompt = _join(
-        domain_prompt,
-        "You are solving a planning problem. Let's think step by step.",
-        "First, write your reasoning step-by-step (can be concise).",
-        "Then provide a DRAFT plan in a fenced code block (one action per line).",
-        problem_prompt,
+    trace: list[str] = []
+    technique = _join(
+        "Let's think step by step.",
+        "Think step-by-step internally, but DO NOT output your reasoning.",
     )
+    prompt = _final_prompt(domain_prompt, problem_prompt, technique=technique)
 
-    trace_lines.append("=== zero_shot_cot: draft_prompt ===")
-    trace_lines.append(draft_prompt)
+    raw = _call(client, model=model_name, prompt=prompt, temperature=temperature, max_tokens=max_tokens)
 
-    # TODO: Use larger temperature and smaller max_tokens?
-    draft_call = _call(
-        client, 
-        model=model_name, 
-        prompt=draft_prompt, 
-        temperature=temperature,
-        max_tokens=2048
-    )
+    trace.append("=== zero_shot_cot: prompt ===")
+    trace.append(prompt)
+    trace.append("=== zero_shot_cot: raw ===")
+    trace.append(raw)
 
-    final_prompt = _join(
-        "Extract the plan from the previous message.",
-        "Return ONLY the plan.",
-        "Here is the previous message:",
-        draft_call,
-        _OUTPUT_CONTRACT_REMINDER,
-    )
-
-    trace_lines.append("=== zero_shot_cot: draft_response ===")
-    trace_lines.append(draft_call)
-    trace_lines.append("=== zero_shot_cot: extract_prompt ===")
-    trace_lines.append(final_prompt)
-
-    final_call = _call(
-        client, 
-        model=model_name, 
-        prompt=final_prompt, 
-        temperature=temperature,
-        max_tokens=max_tokens
-    )
-
-    trace_lines.append("=== zero_shot_cot: extracted_plan_response ===")
-    trace_lines.append(final_call)
-    return StrategyOutput(final_text=_normalize_plan_only(final_call), trace="\n".join(trace_lines))
+    return StrategyOutput(final_text=_ensure_single_codeblock(raw), trace="\n".join(trace))
 
 
 def _run_plan_and_solve(
@@ -238,39 +196,41 @@ def _run_plan_and_solve(
     max_tokens: int,
 ) -> StrategyOutput:
     """
-    Plan-and-Solve Prompting: Improving Zero-Shot Chain-of-Thought Reasoning by Large Language Models (Wang et al., 2023).
+    Plan-and-Solve:
+      (1) Devise a high-level plan / subgoals (NO actions)
+      (2) Carry out the plan into an action sequence (final output contract)
     """
-    trace_lines: list[str] = []
-    plan_prompt = _join(
-        domain_prompt,
-        "TASK: Devise a high-level plan (subgoals) for solving the planning problem.",
-        "Do NOT output PDDL actions yet. Output 4-10 bullet points max.",
-        problem_prompt,
-    )
+    trace: list[str] = []
 
-    trace_lines.append("=== plan_and_solve: plan_prompt ===")
-    trace_lines.append(plan_prompt)
+    plan_instruction = _join(
+        "PLAN-AND-SOLVE (Step 1/2):",
+        "First, understand the problem and devise a plan to solve it.",
+        "Output ONLY 4-10 bullet points (subgoals / ordering constraints).",
+        "Do NOT output actions.",
+    )
+    plan_prompt = _aux_prompt(domain_prompt, problem_prompt, instruction=plan_instruction)
 
     high_level = _call(
         client,
         model=model_name,
         prompt=plan_prompt,
         temperature=temperature,
-        max_tokens=2048,
+        max_tokens=min(1024, max_tokens),
     )
 
-    trace_lines.append("=== plan_and_solve: high_level_plan ===")
-    trace_lines.append(high_level)
-    solve_prompt = _join(
-        domain_prompt,
-        "Use the following high-level plan (subgoals) to construct a valid action sequence.",
+    trace.append("=== plan_and_solve: plan_prompt ===")
+    trace.append(plan_prompt)
+    trace.append("=== plan_and_solve: high_level ===")
+    trace.append(high_level)
+
+    extra = _join(
+        "PLAN-AND-SOLVE (Step 2/2): Carry out the high-level plan below to produce the final action sequence.",
         "High-level plan:",
         high_level,
-        problem_prompt,
-        _OUTPUT_CONTRACT_REMINDER,
     )
+    solve_prompt = _final_prompt(domain_prompt, problem_prompt, extra=extra)
 
-    final = _call(
+    final_raw = _call(
         client,
         model=model_name,
         prompt=solve_prompt,
@@ -278,11 +238,12 @@ def _run_plan_and_solve(
         max_tokens=max_tokens,
     )
 
-    trace_lines.append("=== plan_and_solve: solve_prompt ===")
-    trace_lines.append(solve_prompt)
-    trace_lines.append("=== plan_and_solve: final_response ===")
-    trace_lines.append(final)
-    return StrategyOutput(final_text=_normalize_plan_only(final), trace="\n".join(trace_lines))
+    trace.append("=== plan_and_solve: solve_prompt ===")
+    trace.append(solve_prompt)
+    trace.append("=== plan_and_solve: final_raw ===")
+    trace.append(final_raw)
+
+    return StrategyOutput(final_text=_ensure_single_codeblock(final_raw), trace="\n".join(trace))
 
 
 def _run_step_back(
@@ -294,40 +255,41 @@ def _run_step_back(
     max_tokens: int,
 ) -> StrategyOutput:
     """
-    Take a Step Back: Evoking Reasoning via Abstraction in Large Language Models (Zheng et al., 2024).
+    Step-Back:
+      (1) Abstract into principles/constraints (NO actions)
+      (2) Solve using those principles (final output contract)
     """
-    trace_lines: list[str] = []
+    trace: list[str] = []
 
-    abstract_prompt = _join(
-        domain_prompt,
-        "STEP-BACK: Before solving, abstract the instance into high-level constraints/invariants.",
-        "Output 5-12 concise bullet points capturing goals, constraints, and invariants.",
-        problem_prompt,
+    abstract_instruction = _join(
+        "STEP-BACK (Step 1/2):",
+        "Before solving, step back and write high-level constraints/invariants relevant to this instance.",
+        "Output 6-12 concise bullet points.",
+        "Do NOT output actions.",
     )
-
-    trace_lines.append("=== step_back: abstract_prompt ===")
-    trace_lines.append(abstract_prompt)
+    abstract_prompt = _aux_prompt(domain_prompt, problem_prompt, instruction=abstract_instruction)
 
     principles = _call(
         client,
         model=model_name,
         prompt=abstract_prompt,
         temperature=temperature,
-        max_tokens=2048,
+        max_tokens=min(1024, max_tokens),
     )
 
-    trace_lines.append("=== step_back: principles ===")
-    trace_lines.append(principles)
+    trace.append("=== step_back: abstract_prompt ===")
+    trace.append(abstract_prompt)
+    trace.append("=== step_back: principles ===")
+    trace.append(principles)
 
-    solve_prompt = _join(
-        domain_prompt,
-        "Solve the planning problem using these principles/constraints as guidance:",
+    extra = _join(
+        "STEP-BACK (Step 2/2): Solve using the principles/constraints below as guidance.",
+        "Principles/constraints:",
         principles,
-        problem_prompt,
-        _OUTPUT_CONTRACT_REMINDER,
     )
+    solve_prompt = _final_prompt(domain_prompt, problem_prompt, extra=extra)
 
-    final = _call(
+    final_raw = _call(
         client,
         model=model_name,
         prompt=solve_prompt,
@@ -335,14 +297,13 @@ def _run_step_back(
         max_tokens=max_tokens,
     )
 
-    trace_lines.append("=== step_back: solve_prompt ===")
-    trace_lines.append(solve_prompt)
-    trace_lines.append("=== step_back: final_response ===")
-    trace_lines.append(final)
-    return StrategyOutput(final_text=_normalize_plan_only(final), trace="\n".join(trace_lines))
+    trace.append("=== step_back: solve_prompt ===")
+    trace.append(solve_prompt)
+    trace.append("=== step_back: final_raw ===")
+    trace.append(final_raw)
 
+    return StrategyOutput(final_text=_ensure_single_codeblock(final_raw), trace="\n".join(trace))
 
-# Self-Refine (iterative loop)
 
 def _run_self_refine(
     client: OpenAICompatClient,
@@ -353,134 +314,118 @@ def _run_self_refine(
     max_tokens: int,
 ) -> StrategyOutput:
     """
-    Self-Refine: Iterative Refinement with Self-Feedback (Madaan et al., 2023).
+    Self-Refine: draft -> deterministic critique -> revise (repeat).
+    Critique step avoids format-contract contamination and is constrained to concrete issues.
     """
-    trace_lines: list[str] = []
-    # Initial draft
-    draft_prompt = _join(
-        domain_prompt,
-        "Generate an initial candidate plan.",
-        problem_prompt,
-        _OUTPUT_CONTRACT_REMINDER,
-    )
+    trace: list[str] = []
 
-
-    trace_lines.append("=== self_refine: draft_prompt ===")
-    trace_lines.append(draft_prompt)
-
-    current = _normalize_plan_only(_call(
+    # Draft (final-format)
+    draft_prompt = _final_prompt(domain_prompt, problem_prompt, extra="Generate an initial candidate plan.")
+    draft_raw = _call(
         client,
         model=model_name,
         prompt=draft_prompt,
         temperature=temperature,
         max_tokens=max_tokens,
-    ))
+    )
+    current = _ensure_single_codeblock(draft_raw)
 
-
-    trace_lines.append("=== self_refine: draft_response ===")
-    trace_lines.append(current)
+    trace.append("=== self_refine: draft_prompt ===")
+    trace.append(draft_prompt)
+    trace.append("=== self_refine: draft_raw ===")
+    trace.append(draft_raw)
+    trace.append("=== self_refine: current_codeblock ===")
+    trace.append(current)
 
     max_rounds = 3
     for r in range(1, max_rounds + 1):
-        feedback_prompt = _join(
-            domain_prompt,
+        critic_instruction = _join(
+            "SELF-REFINE CRITIC:",
             "You are a strict plan critic.",
-            "Given the domain/problem and the candidate plan, identify concrete issues:",
-            "- invalid action names / wrong objects",
-            "- violated preconditions or impossible ordering (as far as can be inferred)",
-            "- missing steps likely needed to reach the goal",
-            "- formatting violations",
+            "Do NOT output any code blocks.",
+            "Identify ONLY concrete issues you can verify from DOMAIN BRIEF / PROBLEM PROMPT / the candidate plan text:",
+            "- invalid action names",
+            "- invalid object names",
+            "- wrong argument count or wrong argument order vs DOMAIN BRIEF",
+            "- formatting violations (numbering/commentary/multiple plans)",
             "If there are NO issues, output exactly: NO_ISSUES",
+            "Otherwise output a short numbered list. For each issue, quote the offending line.",
+        )
+        critic_extra = _join(
             "Candidate plan:",
             current,
-            problem_prompt,
         )
-        
-        trace_lines.append(f"=== self_refine: feedback_prompt_round_{r} ===")
-        trace_lines.append(feedback_prompt)
-        
+        critic_prompt = _aux_prompt(domain_prompt, problem_prompt, instruction=critic_instruction, extra=critic_extra)
+
         fb = _call(
             client,
             model=model_name,
-            prompt=feedback_prompt,
-            temperature=temperature,
-            max_tokens=2048,
+            prompt=critic_prompt,
+            temperature=0.0,  # deterministic critique
+            max_tokens=min(1024, max_tokens),
         ).strip()
 
-        trace_lines.append(f"=== self_refine: feedback_round_{r} ===")
-        trace_lines.append(fb)
+        trace.append(f"=== self_refine: critic_prompt_round_{r} ===")
+        trace.append(critic_prompt)
+        trace.append(f"=== self_refine: feedback_round_{r} ===")
+        trace.append(fb)
 
-        if fb.strip() == "NO_ISSUES":
+        if fb == "NO_ISSUES":
             break
 
-        refine_prompt = _join(
-            domain_prompt,
+        revise_extra = _join(
             "Revise the candidate plan to address ALL issues in the feedback.",
             "Feedback:",
             fb,
             "Previous plan:",
             current,
-            problem_prompt,
-            _OUTPUT_CONTRACT_REMINDER,
         )
+        revise_prompt = _final_prompt(domain_prompt, problem_prompt, extra=revise_extra)
 
-        trace_lines.append(f"=== self_refine: refine_prompt_round_{r} ===")
-        trace_lines.append(refine_prompt)
-
-        current = _normalize_plan_only(_call(
+        revised_raw = _call(
             client,
             model=model_name,
-            prompt=refine_prompt,
-            temperature=0.2,
+            prompt=revise_prompt,
+            temperature=temperature,
             max_tokens=max_tokens,
-        ))
+        )
+        revised = _ensure_single_codeblock(revised_raw)
 
-        trace_lines.append(f"=== self_refine: refined_response_round_{r} ===")
-        trace_lines.append(current)
+        trace.append(f"=== self_refine: revise_prompt_round_{r} ===")
+        trace.append(revise_prompt)
+        trace.append(f"=== self_refine: revised_raw_round_{r} ===")
+        trace.append(revised_raw)
+        trace.append(f"=== self_refine: revised_codeblock_round_{r} ===")
+        trace.append(revised)
 
-    return StrategyOutput(final_text=current, trace="\n".join(trace_lines))
+        if revised.strip() == current.strip():
+            break
+        current = revised
+
+    return StrategyOutput(final_text=current, trace="\n".join(trace))
 
 
-# Tree of Thoughts (beam search)
+# Tree of Thoughts
+
 @dataclass
 class _ToTNode:
-    actions: list[str]
+    actions_prefix_text: str  # store as plain text inside code block for simplicity
     score: float
-    parent_idx: int | None = None
 
 
-def _parse_tot_candidates(text: str) -> list[tuple[float, list[str]]]:
-    """
-    Expected format (model-generated):
-      CANDIDATE 1
-      SCORE: 7
-      ```
-      (action ...)
-      (action ...)
-      ```
-    """
-    parts = re.split(r"\bCANDIDATE\s+\d+\b", text or "", flags=re.IGNORECASE)
-    out: list[tuple[float, list[str]]] = []
+_SCORE_RE = re.compile(r"^\s*(\d+)\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*$")
 
-    for p in parts[1:]:
-        m = re.search(r"SCORE\s*:\s*([0-9]+(?:\.[0-9]+)?)", p, flags=re.IGNORECASE)
-        score = float(m.group(1)) if m else 0.0
-        body = _extract_codeblock(p)
-        # Prefer codeblock body; otherwise salvage action-like lines.
-        if body is not None:
-            lines = [ln.strip() for ln in body.splitlines() if ln.strip().startswith("(")]
-        else:
-            lines = [ln.strip() for ln in p.splitlines() if ln.strip().startswith("(")]
-
-        # Enforce the intended "chunk" size (1–3 actions).
-        lines = lines[:3]
-
-        if lines:
-            out.append((score, lines))
-
-    out.sort(key=lambda x: x[0], reverse=True)
-    return out
-
+def _parse_scores(text: str, n: int) -> list[float]:
+    scores = [0.0] * n
+    for ln in (text or "").splitlines():
+        m = _SCORE_RE.match(ln)
+        if not m:
+            continue
+        i = int(m.group(1))
+        s = float(m.group(2))
+        if 1 <= i <= n:
+            scores[i - 1] = s
+    return scores
 
 
 def _run_tree_of_thought(
@@ -492,91 +437,140 @@ def _run_tree_of_thought(
     max_tokens: int,
 ) -> StrategyOutput:
     """
-    Tree of Thoughts (Yao et al., 2023): generate multiple candidate "thoughts"
-
-    Practical adaptation for PDDL-plan generation:
-      - Node state = partial action sequence
-      - Expansion = propose K next chunks (1-3 actions) + self-score
-      - Search = beam over cumulative score
-      - Completion = complete from best prefix, then normalize to plan-only
+    Tree of Thoughts (minimal implementation, no environment interaction):
+      - PROPOSE: generate K candidate next chunks (multiple code blocks)
+      - EVALUATE: deterministic scoring in a separate call
+      - BEAM: keep top prefixes
+      - COMPLETE: final plan from best prefix (final output contract)
     """
-    trace_lines: list[str] = []
+    trace: list[str] = []
+
     beam_width = 2
     branching = 3
     max_depth = 6
 
-    # Start with empty plan prefix
-    beam: list[_ToTNode] = [_ToTNode(actions=[], score=0.0, parent_idx=None)]
+    propose_temp = max(temperature, 0.7)
+    eval_temp = 0.0
 
-    trace_lines.append("=== TREE_OF_THOUGHT: CONFIG ===")
-    trace_lines.append(f"beam_width={beam_width}, branching={branching}, max_depth={max_depth}")
+    beam: list[_ToTNode] = [_ToTNode(actions_prefix_text="", score=0.0)]
 
-    gen_temp = max(temperature, 0.7)  # ToT needs diversity; keep eval self-score deterministic-ish via instructions
+    trace.append("=== tree_of_thought: CONFIG ===")
+    trace.append(f"beam_width={beam_width}, branching={branching}, max_depth={max_depth}")
+    trace.append(f"propose_temp={propose_temp}, eval_temp={eval_temp}")
 
     for depth in range(max_depth):
         new_nodes: list[_ToTNode] = []
-        trace_lines.append(f"=== TREE_OF_THOUGHT: DEPTH {depth} ===")
+        trace.append(f"=== tree_of_thought: DEPTH {depth} ===")
 
         for b_idx, node in enumerate(beam):
-            prefix_block = "```\n" + "\n".join(node.actions) + "\n```" if node.actions else "```\n\n```"
+            prefix_block = f"```\n{node.actions_prefix_text}\n```" if node.actions_prefix_text.strip() else "```\n\n```"
 
-            expand_prompt = _join(
-                domain_prompt,
-                "TREE-OF-THOUGHTS EXPANSION:",
-                "IMPORTANT: For this EXPANSION step only, you MUST output MULTIPLE fenced code blocks (one per candidate) as specified below, even if earlier instructions require a single code block.",
-                "Given the domain/problem and the current partial plan prefix, propose "
-                f"{branching} candidates for the NEXT SMALL CHUNK of actions (1-3 actions).",
-                "For each candidate, provide a SCORE from 1 to 10 indicating how promising/valid it is.",
-                "Return EXACTLY this structure for ALL candidates 1.." + str(branching) + ":",
-                "Each candidate must follow:\n"
-                "CANDIDATE <k>\nSCORE: <1-10>\n```\n(action ...)\n(action ...)\n```",
-
-                "Current partial plan prefix:",
-                prefix_block,
-                problem_prompt,
+            propose_instruction = _join(
+                "TREE-OF-THOUGHTS (PROPOSE):",
+                f"Propose EXACTLY {branching} candidates for the next small chunk of actions.",
+                "Each candidate must be a fenced code block with 1-3 action lines.",
+                "Return EXACTLY this structure:",
+                "CANDIDATE 1",
+                "```",
+                "action_name arg1 arg2 ...",
+                "```",
+                "CANDIDATE 2",
+                "```",
+                "action_name arg1 arg2 ...",
+                "```",
+                "CANDIDATE 3",
+                "```",
+                "action_name arg1 arg2 ...",
+                "```",
+                "Do NOT include scores in this step.",
             )
+            propose_extra = _join("PREFIX:", prefix_block)
+            propose_prompt = _aux_prompt(domain_prompt, problem_prompt, instruction=propose_instruction, extra=propose_extra)
 
-            expanded = _call(
+            proposed_raw = _call(
                 client,
                 model=model_name,
-                prompt=expand_prompt,
-                temperature=gen_temp,
-                max_tokens=768,
+                prompt=propose_prompt,
+                temperature=propose_temp,
+                max_tokens=min(900, max_tokens),
             )
 
-            trace_lines.append(f"[beam={b_idx}] prefix_len={len(node.actions)} score={node.score}")
-            trace_lines.append(expanded.strip())
+            trace.append(f"[beam={b_idx}] prefix_score={node.score}")
+            trace.append("=== propose_prompt ===")
+            trace.append(propose_prompt)
+            trace.append("=== proposed_raw ===")
+            trace.append(proposed_raw)
 
-            cands = _parse_tot_candidates(expanded)
-            for sc, chunk in cands[:branching]:
-                new_nodes.append(_ToTNode(actions=node.actions + chunk, score=node.score + sc, parent_idx=b_idx))
+            # Minimal parsing: take the first `branching` code blocks as candidates
+            blocks = _CODEBLOCK_RE.findall(proposed_raw or "")
+            candidates = [b.strip("\n") for b in blocks[:branching] if (b or "").strip()]
 
-        # Beam select
-        new_nodes.sort(key=lambda n: n.score, reverse=True)
-        # Beam select
+            if not candidates:
+                continue
+
+            # Evaluate candidates deterministically
+            eval_instruction = _join(
+                "TREE-OF-THOUGHTS (EVALUATE):",
+                "Score each candidate chunk from 0 to 10.",
+                "Higher is better: likely valid (per DOMAIN BRIEF), uses valid objects, and makes progress toward the goal.",
+                "Do NOT output code blocks.",
+                "Output EXACTLY:",
+                "SCORES:",
+                "1: <0-10>",
+                "2: <0-10>",
+                "3: <0-10>",
+            )
+            cand_text = []
+            for i, c in enumerate(candidates, start=1):
+                cand_text.append(f"CANDIDATE {i}:\n```\n{c}\n```")
+            eval_extra = _join(
+                "PREFIX:",
+                prefix_block,
+                "CANDIDATES:",
+                "\n\n".join(cand_text),
+            )
+            eval_prompt = _aux_prompt(domain_prompt, problem_prompt, instruction=eval_instruction, extra=eval_extra)
+
+            eval_raw = _call(
+                client,
+                model=model_name,
+                prompt=eval_prompt,
+                temperature=eval_temp,
+                max_tokens=min(400, max_tokens),
+            )
+
+            scores = _parse_scores(eval_raw, n=len(candidates))
+
+            trace.append("=== eval_prompt ===")
+            trace.append(eval_prompt)
+            trace.append("=== eval_raw ===")
+            trace.append(eval_raw)
+            trace.append(f"=== parsed_scores ===\n{scores}")
+
+            for sc, chunk in zip(scores, candidates):
+                new_prefix = _join(node.actions_prefix_text, chunk).strip()
+                new_nodes.append(_ToTNode(actions_prefix_text=new_prefix, score=node.score + float(sc)))
+
         if not new_nodes:
-            trace_lines.append("=== TREE_OF_THOUGHT: NO NEW NODES; STOPPING ===")
+            trace.append("=== tree_of_thought: NO NEW NODES; STOPPING ===")
             break
 
         new_nodes.sort(key=lambda n: n.score, reverse=True)
         beam = new_nodes[:beam_width]
 
-        if not beam:
-            break
-
-    # Completion from best prefix
     best = max(beam, key=lambda n: n.score)
-    prefix = "```\n" + "\n".join(best.actions) + "\n```" if best.actions else "```\n\n```"
+    prefix_block = f"```\n{best.actions_prefix_text}\n```" if best.actions_prefix_text.strip() else "```\n\n```"
 
-    complete_prompt = _join(
-        domain_prompt,
-        "Complete the plan starting from the given prefix (you may keep the prefix as-is, or adjust minimally if needed).",
-        "Prefix:",
-        prefix,
-        problem_prompt,
-        _OUTPUT_CONTRACT_REMINDER,
+    complete_extra = _join(
+        "TREE-OF-THOUGHTS (COMPLETE):",
+        "Complete a full goal-reaching plan starting from the prefix below.",
+        "You may minimally adjust the prefix only if necessary.",
+        "PREFIX:",
+        prefix_block,
     )
-    final = _call(
+    complete_prompt = _final_prompt(domain_prompt, problem_prompt, extra=complete_extra)
+
+    final_raw = _call(
         client,
         model=model_name,
         prompt=complete_prompt,
@@ -584,13 +578,14 @@ def _run_tree_of_thought(
         max_tokens=max_tokens,
     )
 
-    final_text = _normalize_plan_only(final)
-    trace_lines.append("=== TREE_OF_THOUGHT: SELECTED PREFIX ===")
-    trace_lines.append(prefix)
-    trace_lines.append("=== TREE_OF_THOUGHT: FINAL ===")
-    trace_lines.append(final_text)
+    trace.append("=== tree_of_thought: selected_prefix ===")
+    trace.append(prefix_block)
+    trace.append("=== tree_of_thought: complete_prompt ===")
+    trace.append(complete_prompt)
+    trace.append("=== tree_of_thought: final_raw ===")
+    trace.append(final_raw)
 
-    return StrategyOutput(final_text=final_text, trace="\n".join(trace_lines))
+    return StrategyOutput(final_text=_ensure_single_codeblock(final_raw), trace="\n".join(trace))
 
 
 # Registry
@@ -599,38 +594,33 @@ STRATEGIES: dict[str, StrategySpec] = {
     "baseline": StrategySpec(
         name="baseline",
         run=_run_baseline,
-        description="No extra prompting beyond the domain + problem prompt.",
+        description="No technique; standardized wrapper + mandatory output requirements.",
     ),
     "zero_shot_cot": StrategySpec(
         name="zero_shot_cot",
         run=_run_zero_shot_cot,
-        description="Zero-shot CoT as a 2-stage procedure: draft reasoning+plan, then extract plan-only.",
+        description="Zero-shot CoT (single-call, minimal trigger phrase) adapted to plan-only output.",
     ),
     "plan_and_solve": StrategySpec(
         name="plan_and_solve",
         run=_run_plan_and_solve,
-        description="Plan-and-Solve: explicit high-level plan step, then solve conditioned on it.",
+        description="Plan-and-Solve: subgoals (aux) then execute into plan (final-format).",
     ),
     "step_back": StrategySpec(
         name="step_back",
         run=_run_step_back,
-        description="Step-Back: explicit abstraction/principles step, then solve conditioned on it.",
+        description="Step-Back: abstract constraints (aux) then solve (final-format).",
     ),
     "self_refine": StrategySpec(
         name="self_refine",
         run=_run_self_refine,
-        description="Self-Refine: iterative FEEDBACK -> REFINE loop; returns best refined plan-only output.",
+        description="Self-Refine: draft -> deterministic critique -> revise (up to 3 rounds).",
     ),
     "tree_of_thought": StrategySpec(
         name="tree_of_thought",
         run=_run_tree_of_thought,
-        description="Tree of Thoughts: beam search over partial plan prefixes using self-scored chunk expansions.",
+        description="Tree of Thoughts: propose (temp>=0.7) + deterministic evaluate + beam search, then complete.",
     ),
-    #"graph_of_thought": StrategySpec(
-    #    name="graph_of_thought",
-    #    run=_run_graph_of_thought,
-    #    description="Graph of Thoughts: generate multiple plan nodes, aggregate top-k, apply feedback loop refinement.",
-    #),
 }
 
 
