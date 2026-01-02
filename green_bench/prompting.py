@@ -96,6 +96,7 @@ _OUTPUT_CONTRACT_REMINDER = """OUTPUT FORMAT (MANDATORY):
 - No prose before or after the code block.
 """
 
+
 _CODEBLOCK_RE = re.compile(r"```(?:[a-zA-Z0-9_-]+)?\s*\n(.*?)\n?```", re.DOTALL)
 
 def _normalize_plan_only(text: str) -> str:
