@@ -8,6 +8,51 @@ from .openai_client import LLMRequest, OpenAICompatClient
 
 
 # Public Types
+SYSTEM_PROMPT = \
+"""
+SYSTEM
+You are an expert planner.
+
+You will receive:
+(1) a DOMAIN BRIEF describing the available actions and their required argument order, and
+(2) an INSTANCE BRIEF describing the concrete objects, initial state, and goal.
+
+Task:
+Produce a single valid, goal-reaching plan.
+
+Hard constraints:
+- Output MUST be a single fenced code block (triple backticks).
+- Inside the code block: one action per line, exactly in the form: action_name arg1 arg2 ...
+- Use ONLY action names that appear in the DOMAIN BRIEF (case-insensitive matching is allowed, but keep names consistent).
+- Use the EXACT argument order defined in the DOMAIN BRIEF.
+- Use ONLY object names that appear in the INSTANCE BRIEF (no renaming, no aliases, no added objects).
+- Do NOT include numbering, commentary, blank lines, or multiple alternative plans.
+- If you are unsure, make the safest progress: prefer actions that you can justify from the INSTANCE BRIEF.
+- Do NOT restate the task, the state, or the goal.
+
+If the instance is unsolvable under the given constraints, output exactly:
+```
+UNSOLVABLE
+```
+
+USER
+<domain_brief>
+{{DOMAIN_BRIEF_NL}}
+</domain_brief>
+
+<instance_brief>
+{{INSTANCE_BRIEF_NL}}
+</instance_brief>
+
+Return ONLY the plan as specified above. Example output:
+
+```
+action1 arg1 arg2
+action2 arg2 arg3 arg4
+...
+```
+"""
+
 
 @dataclass(frozen=True)
 class StrategyOutput:
@@ -111,7 +156,7 @@ def _run_baseline(
         max_tokens: int,
 ) -> StrategyOutput:
     trace_lines: list[str] = []
-    prompt = _join(domain_prompt, problem_prompt)
+    prompt = SYSTEM_PROMPT.replace("{{DOMAIN_BRIEF_NL}}", domain_prompt).replace("{{INSTANCE_BRIEF_NL}}", problem_prompt)
     raw = _call(client, model=model_name, prompt=prompt, temperature=temperature, max_tokens=max_tokens)
     
     trace_lines.append("=== baseline: prompt ===")

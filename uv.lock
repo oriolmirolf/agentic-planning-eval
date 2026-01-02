@@ -116,6 +116,7 @@ dependencies = [
     { name = "httpx" },
     { name = "jupyter" },
     { name = "mlflow" },
+    { name = "natsort" },
     { name = "openai" },
     { name = "pandas" },
     { name = "pydantic" },
@@ -125,6 +126,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
+    { name = "tqdm" },
     { name = "typer" },
     { name = "uvicorn" },
 ]
@@ -153,6 +155,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "mlflow", specifier = ">=2.12.1" },
+    { name = "natsort", specifier = ">=8.4.0" },
     { name = "openai", specifier = ">=1.0.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
@@ -162,6 +165,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "requests", specifier = ">=2.31.0" },
     { name = "rich", specifier = ">=13.7.0" },
+    { name = "tqdm", specifier = ">=4.67.1" },
     { name = "typer", specifier = ">=0.12.0" },
     { name = "uvicorn", specifier = ">=0.20.0" },
 ]
@@ -4360,6 +4364,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/8f/0a60e501584145588be1af5cc829265701ba3c35a64aec8e07cbb71d39bb/multidict-6.7.0-cp314-cp314t-win_amd64.whl", hash = "sha256:09929cab6fcb68122776d575e03c6cc64ee0b8fca48d17e135474b042ce515cd", size = 53507, upload-time = "2025-10-06T14:51:53.672Z" },
     { url = "https://files.pythonhosted.org/packages/7f/ae/3148b988a9c6239903e786eac19c889fab607c31d6efa7fb2147e5680f23/multidict-6.7.0-cp314-cp314t-win_arm64.whl", hash = "sha256:cc41db090ed742f32bd2d2c721861725e6109681eddf835d0a82bd3a5c382827", size = 44804, upload-time = "2025-10-06T14:51:55.415Z" },
     { url = "https://files.pythonhosted.org/packages/b7/da/7d22601b625e241d4f23ef1ebff8acfc60da633c9e7e7922e24d10f592b3/multidict-6.7.0-py3-none-any.whl", hash = "sha256:394fc5c42a333c9ffc3e421a4c85e08580d990e08b99f6bf35b4132114c5dcb3", size = 12317, upload-time = "2025-10-06T14:52:29.272Z" },
+]
+
+[[package]]
+name = "natsort"
+version = "8.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e2/a9/a0c57aee75f77794adaf35322f8b6404cbd0f89ad45c87197a937764b7d0/natsort-8.4.0.tar.gz", hash = "sha256:45312c4a0e5507593da193dedd04abb1469253b601ecaf63445ad80f0a1ea581", size = 76575, upload-time = "2023-06-20T04:17:19.925Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ef/82/7a9d0550484a62c6da82858ee9419f3dd1ccc9aa1c26a1e43da3ecd20b0d/natsort-8.4.0-py3-none-any.whl", hash = "sha256:4732914fb471f56b5cce04d7bae6f164a592c7712e1c85f9ef585e197299521c", size = 38268, upload-time = "2023-06-20T04:17:17.522Z" },
 ]
 
 [[package]]

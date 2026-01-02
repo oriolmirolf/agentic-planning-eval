@@ -1,5 +1,5 @@
 {
-  "domain_prompt": "You are a planning agent in a simplified Blocks World.\n\nObjects & state:\n- Labeled blocks: A, B, C, … (rigid, same size).\n- One robot hand (the hand) that can hold at most one block.\n- A block is always exactly one of: on the table, on top of exactly one other block, or being held.\n- A block is clear iff nothing is on top of it.\n- The table can hold any number of separate stacks.\n- Unless stated otherwise, the hand starts empty.\n\nLegal actions (use these exact action names):\n1) pick-up X — Preconditions: hand is empty; X is on the table; X is clear. Effects: hand holds X; X is no longer on the table; X is not clear; hand is not empty.\n2) put-down X — Preconditions: hand holds X. Effects: X is on the table and clear; hand is empty; hand no longer holds X.\n3) unstack X Y — Preconditions: hand is empty; X is on Y; X is clear. Effects: hand holds X; X is no longer on Y; Y becomes clear; hand is not empty; X is not clear.\n4) stack X Y — Preconditions: hand holds X; Y is clear. Effects: X is on Y; hand is empty; hand no longer holds X; X becomes clear; Y becomes not clear.\n\nInvariants:\n- No block can be in two places at once.\n- A block cannot be both held and on something.\n- Only clear blocks can be moved; only clear blocks can receive another block on top; no cycles.\n\nYOUR JOB: Given an initial arrangement and a goal arrangement, return a valid sequence of actions that achieves the goal.\n\nOUTPUT REQUIREMENTS (IMPORTANT): Return ONLY a fenced code block containing one PDDL-style action per line using exactly these names: (pick-up X), (put-down X), (unstack X Y), (stack X Y). Use exactly the object names provided (e.g., A, B, C). No numbering, no extra commentary. Example format:\n```\n(unstack C B)\n(put-down C)\n(pick-up A)\n(stack A B)\n```",
+  "domain_prompt": "DOMAIN BRIEF\n\n# Summary\nThis domain models a classic blocks world with a single robot arm. Blocks can be on the table, on top of other blocks, clear on top, held by the arm, or free with the arm empty. The available actions are pick-up, put-down, stack, and unstack, each changing which block is held, which surfaces are clear, and where blocks are located.\n\n# Object Types\n- All objects are generic.\n\n# Predicates & Functions\n- on ?x ?y: Object ?x is directly on top of object ?y.\n- on-table ?x: Object ?x is directly on the table.\n- clear ?x: Object ?x has nothing on top of it.\n- arm-empty: The robot\u2019s arm is not holding anything.\n- holding ?x: The robot\u2019s arm is holding object ?x.\n\n# Actions\n\n## Action: pick-up\n- Parameters: ?ob (object)\n- Preconditions:\n  - ?ob is clear.\n  - ?ob is on-table.\n  - arm-empty is true.\n- Effects:\n  - It is no longer the case that ?ob is on-table.\n  - It is no longer the case that ?ob is clear.\n  - It is no longer the case that arm-empty is true.\n  - holding ?ob becomes true.\n\n## Action: put-down\n- Parameters: ?ob (object)\n- Preconditions:\n  - holding ?ob is true.\n- Effects:\n  - It is no longer the case that holding ?ob is true.\n  - clear ?ob becomes true.\n  - arm-empty becomes true.\n  - on-table ?ob becomes true.\n\n## Action: stack\n- Parameters: ?ob (object), ?under (object)\n- Preconditions:\n  - holding ?ob is true.\n  - ?under is clear.\n- Effects:\n  - It is no longer the case that holding ?ob is true.\n  - It is no longer the case that ?under is clear.\n  - clear ?ob becomes true.\n  - arm-empty becomes true.\n  - on ?ob ?under becomes true.\n\n## Action: unstack\n- Parameters: ?ob (object), ?under (object)\n- Preconditions:\n  - on ?ob ?under is true.\n  - ?ob is clear.\n  - arm-empty is true.\n- Effects:\n  - holding ?ob becomes true.\n  - clear ?under becomes true.\n  - It is no longer the case that ?ob is clear.\n  - It is no longer the case that arm-empty is true.\n  - It is no longer the case that on ?ob ?under is true.\n\nFINAL CHECK\n- All action names are identical to the PDDL.\n- All Lisp syntax has been removed and replaced with clear English.\n- All preconditions and effects are included and logically complete.",
   "actions": [
     {
       "name": "pick-up",
@@ -100,7 +100,7 @@
   "problems": [
     {
       "id": "p01",
-      "prompt": "Blocks: A, B, C. Initial: A, B, C are each on the table and clear; hand empty. Goal: A on B and B on C (tower top->bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nArrange three blocks into a tower: A on B, and B on C.\n\n# Objects\n- Objects: A, B, C\n\n# Initial State\n- The robot\u2019s arm is empty.\n- A is on the table.\n- B is on the table.\n- C is on the table.\n- A is clear.\n- B is clear.\n- C is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- Object names A, B, C match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are included.",
       "overview": {
         "description": "Rearrange blocks to satisfy the goal stacking configuration.",
         "initial_state": "A, B, C are each on the table and clear; the hand is empty.",
@@ -131,7 +131,7 @@
     },
     {
       "id": "p02",
-      "prompt": "Blocks: A, B, C. Initial: B on A (A on table); C on table. B and C are clear; hand empty. Goal: A on C and B on A (tower top->bottom: B, A, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nRearrange three blocks using a single robot arm. Start with B on A and C on the table. Build a new tower where A is on C and B is on A.\n\n# Objects\n- Objects: A, B, C\n\n# Initial State\n- The robot arm is empty.\n- B is on A.\n- A is on the table.\n- C is on the table.\n- B is clear.\n- C is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on C.\n- B is on A.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names (A, B, C) match the PDDL exactly.\n- No Lisp-style syntax is used.\n- No hints or plans are provided.",
       "overview": {
         "description": "Rearrange blocks to satisfy the goal stacking configuration.",
         "initial_state": "B is on A (A on the table); C is on the table. B and C are clear; the hand is empty.",
@@ -162,7 +162,7 @@
     },
     {
       "id": "p03",
-      "prompt": "Blocks: A, B, C. Initial: C on B on A (A on table). C is clear; hand empty. Goal: A on B and B on C (tower top->bottom: A, B, C). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nReverse a three-block tower: start with a vertical stack C on B on A on the table, and achieve A on B and B on C.\n\n# Objects\n- Objects: A, B, C\n\n# Initial State\n- The robot\u2019s arm is empty.\n- A is on the table.\n- B is on A.\n- C is on B.\n- C is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names match the PDDL exactly: A, B, C.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
       "overview": {
         "description": "Rearrange blocks to satisfy the goal stacking configuration.",
         "initial_state": "C is on B and B is on A (A on the table). C is clear; the hand is empty.",
@@ -193,7 +193,7 @@
     },
     {
       "id": "p04",
-      "prompt": "Blocks: A, B, C, D. Initial: Two towers: A on B (B on table) and D on C (C on table). A and D are clear; hand empty. Goal: Single tower A on B on C on D (top->bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nMerge two separate two-block towers into a single four-block tower with the order from top to bottom: A, B, C, D.\n\n# Objects\n- Objects: A, B, C, D\n\n# Initial State\n- The robot\u2019s arm is empty.\n- A is on B.\n- B is on the table.\n- D is on C.\n- C is on the table.\n- A is clear.\n- D is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n- C is on D.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names match the PDDL exactly: A, B, C, D.\n- No Lisp syntax is present.\n- No action hints or plans are included.",
       "overview": {
         "description": "Merge two stacks into a single target tower.",
         "initial_state": "Two towers: A on B (B on the table) and D on C (C on the table). A and D are clear; the hand is empty.",
@@ -230,7 +230,7 @@
     },
     {
       "id": "p05",
-      "prompt": "Blocks: A, B, C, D. Initial: D on C on B on A (A on table). D is clear; hand empty. Goal: A on B on C on D (top->bottom: A, B, C, D). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nReverse a four-block tower using a single robot arm: transform a tower with D on C on B on A into the reversed order with A on B on C on D.\n\n# Objects\n- Objects: A, B, C, D\n\n# Initial State\n- The robot\u2019s arm is empty.\n- A is on the table.\n- B is on A.\n- C is on B.\n- D is on C.\n- D is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n- C is on D.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names match exactly: A, B, C, D.\n- No Lisp syntax is used.\n- No hints or plans are included.",
       "overview": {
         "description": "Invert a full stack into the opposite ordering.",
         "initial_state": "D on C on B on A (A on the table). D is clear; the hand is empty.",
@@ -267,7 +267,7 @@
     },
     {
       "id": "p06",
-      "prompt": "Blocks: A, B, C, D, E. Initial: A, B, C, D, E are each on the table and clear; hand empty. Goal: E on D on C on B on A (top->bottom: E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nArrange five blocks into a single tower so that E is on D, D is on C, C is on B, and B is on A, starting from all blocks separate on the table with the arm empty.\n\n# Objects\n- Objects: A, B, C, D, E\n\n# Initial State\n- The robot arm is empty.\n- A is on the table.\n- B is on the table.\n- C is on the table.\n- D is on the table.\n- E is on the table.\n- A is clear.\n- B is clear.\n- C is clear.\n- D is clear.\n- E is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- E is on D.\n- D is on C.\n- C is on B.\n- B is on A.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names match exactly: A, B, C, D, E.\n- No Lisp syntax is used.\n- No hints or plans are included.",
       "overview": {
         "description": "Build a single tall tower from individually separated blocks.",
         "initial_state": "A, B, C, D, E are each on the table and clear; the hand is empty.",
@@ -310,7 +310,7 @@
     },
     {
       "id": "p07",
-      "prompt": "Blocks: A, B, C, D, E. Initial: C on B on A (A on table) and E on D (D on table). C and E are clear; hand empty. Goal: Single tower A on B on C on D on E (top->bottom: A, B, C, D, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nMerge two existing towers of blocks into a single five-block tower with a specified top-to-bottom order.\n\n# Objects\n- Objects: A, B, C, D, E\n\n# Initial State\n- The robot\u2019s arm is empty.\n- B is on A.\n- C is on B.\n- A is on the table.\n- E is on D.\n- D is on the table.\n- C is clear.\n- E is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n- C is on D.\n- D is on E.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names (A, B, C, D, E) match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
       "overview": {
         "description": "Merge two existing stacks into one target ordering.",
         "initial_state": "C on B on A (A on the table) and E on D (D on the table). C and E are clear; the hand is empty.",
@@ -353,7 +353,7 @@
     },
     {
       "id": "p08",
-      "prompt": "Blocks: A, B, C, D, E. Initial: Three stacks: B on A (A on table), D on C (C on table), and E alone on the table. B, D, E are clear; hand empty. Goal: Single tower C on D on B on A on E (top->bottom: C, D, B, A, E). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nArrange five blocks into a single tower by merging three separate stacks into one.\n\n# Objects\n- Objects: A, B, C, D, E\n\n# Initial State\n- The robot\u2019s arm is empty.\n- B is on A.\n- A is on the table.\n- D is on C.\n- C is on the table.\n- E is on the table.\n- B is clear on top.\n- D is clear on top.\n- E is clear on top.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- C is on D.\n- D is on B.\n- B is on A.\n- A is on E.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names match the PDDL exactly: A, B, C, D, E.\n- No Lisp syntax is used.\n- No hints or plans are included.",
       "overview": {
         "description": "Combine multiple stacks into one target tower ordering.",
         "initial_state": "Three stacks: B on A (A on the table), D on C (C on the table), and E alone on the table. B, D, E are clear; the hand is empty.",
@@ -396,7 +396,7 @@
     },
     {
       "id": "p09",
-      "prompt": "Blocks: A, B, C, D, E, F. Initial: A, B, C, D, E, F are each on the table and clear; hand empty. Goal: F on E on D on C on B on A (top->bottom: F, E, D, C, B, A). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nBuild a single six-block tower from scratch using one robot arm.\n\n# Objects\n- Objects: A, B, C, D, E, F\n\n# Initial State\n- The robot\u2019s arm is empty.\n- A is on the table.\n- B is on the table.\n- C is on the table.\n- D is on the table.\n- E is on the table.\n- F is on the table.\n- A is clear.\n- B is clear.\n- C is clear.\n- D is clear.\n- E is clear.\n- F is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- F is on E.\n- E is on D.\n- D is on C.\n- C is on B.\n- B is on A.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names match the PDDL exactly: A, B, C, D, E, F.\n- No Lisp syntax is present.\n- No hints or plans are included.",
       "overview": {
         "description": "Build a single tall tower from individually separated blocks.",
         "initial_state": "A, B, C, D, E, F are each on the table and clear; the hand is empty.",
@@ -445,7 +445,7 @@
     },
     {
       "id": "p10",
-      "prompt": "Blocks: A, B, C, D, E, F, G. Initial: Two towers: C on B on A (A on table) and G on F on E on D (D on table). C and G are clear; hand empty. Goal: Single tower A on B on C on D on E on F on G (top->bottom: A, B, C, D, E, F, G). OUTPUT: Only a fenced code block with one action per line using (pick-up X), (put-down X), (unstack X Y), (stack X Y); use objects A, B, C, D, E, F, G exactly; no extra text.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nMerge two existing towers of blocks into a single seven-block tower with A on top and G on the bottom.\n\n# Objects\n- Objects: A, B, C, D, E, F, G\n\n# Initial State\n- The robot arm is empty.\n- C is on B.\n- B is on A.\n- A is on the table.\n- G is on F.\n- F is on E.\n- E is on D.\n- D is on the table.\n- C is clear.\n- G is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n- C is on D.\n- D is on E.\n- E is on F.\n- F is on G.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names are exactly A, B, C, D, E, F, G.\n- No Lisp syntax is present.\n- No hints or plans are included.",
       "overview": {
         "description": "Merge two tall stacks into one target tower ordering.",
         "initial_state": "Two towers: C on B on A (A on the table) and G on F on E on D (D on the table). C and G are clear; the hand is empty.",

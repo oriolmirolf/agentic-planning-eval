@@ -31,6 +31,8 @@ dependencies = [
     "pyperplan>=2.1",
     "autopep8>=2.3.2",
     "git-filter-repo>=2.47.0",
+    "tqdm>=4.67.1",
+    "natsort>=8.4.0",
 ]
 
 [dependency-groups]
