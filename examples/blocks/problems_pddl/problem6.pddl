@@ -1,13 +1,13 @@
 ;; Problem 6: build a five‑block tower from scattered blocks
-;; Initial state: A, B, C, D and E all sit individually on the table and are
-;; clear.  The arm is empty.  Goal: stack the blocks to form the tower E on D on
-;; C on B on A (so E is top and A is bottom).
+;; Initial state: blo_c80dc9, blo_0c8fa4, blo_5ce8c5, blo_ad722b and blo_3f7922 all sit individually on the table and are
+;; clear.  The arm is empty.  Goal: stack the blocks to form the tower blo_3f7922 on blo_ad722b on
+;; blo_5ce8c5 on blo_0c8fa4 on blo_c80dc9 (so blo_3f7922 is top and blo_c80dc9 is bottom).
 
 (define (problem p06)
   (:domain blocksworld)
-  (:objects A B C D E)
+  (:objects blo_c80dc9 blo_0c8fa4 blo_5ce8c5 blo_ad722b blo_3f7922)
   (:init (arm-empty)
-         (on-table A) (on-table B) (on-table C) (on-table D) (on-table E)
-         (clear A) (clear B) (clear C) (clear D) (clear E))
-  (:goal (and (on E D) (on D C) (on C B) (on B A)))
+         (on-table blo_c80dc9) (on-table blo_0c8fa4) (on-table blo_5ce8c5) (on-table blo_ad722b) (on-table blo_3f7922)
+         (clear blo_c80dc9) (clear blo_0c8fa4) (clear blo_5ce8c5) (clear blo_ad722b) (clear blo_3f7922))
+  (:goal (and (on blo_3f7922 blo_ad722b) (on blo_ad722b blo_5ce8c5) (on blo_5ce8c5 blo_0c8fa4) (on blo_0c8fa4 blo_c80dc9)))
 )

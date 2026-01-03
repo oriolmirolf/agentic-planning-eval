@@ -1,5 +1,5 @@
 {
-  "domain_prompt": "DOMAIN BRIEF\n\n# Summary\nThis domain models load balancing across servers in regions. Servers host services and can be powered on or off. Buckets belong to regions and require specific services. Buckets can be assigned to servers that are online, co-located in the same region, run the required service, and have available capacity. Actions incur a total-cost, and server load changes with bucket assignment and unassignment.\n\n# Object Types\n- server: Base object\n- region: Base object\n- service: Base object\n- bucket: Base object\n\n# Predicates & Functions\n- server-region: Server ?s is located in region ?r.\n- bucket-region: Bucket ?b is located in region ?r.\n- bucket-service: Bucket ?b requires service ?svc.\n- online: Server ?s is powered on.\n- runs: Server ?s runs service ?svc.\n- assigned-to: Bucket ?b is assigned to server ?s.\n- unassigned: Bucket ?b is currently not assigned to any server.\n- capacity: Numeric function giving the capacity of server ?s.\n- load: Numeric function giving the current load on server ?s (number of assigned buckets).\n- total-cost: Numeric function representing cumulative action cost.\n\n# Actions\n\n## Action: power-on\n- Parameters: ?s (server)\n- Preconditions:\n  - It is not the case that server ?s is online.\n- Effects:\n  - Server ?s is online.\n  - Increase total-cost by 1.\n\n## Action: power-off\n- Parameters: ?s (server)\n- Preconditions:\n  - Server ?s is online.\n  - The load of server ?s equals 0.\n- Effects:\n  - It is no longer the case that server ?s is online.\n  - Increase total-cost by 1.\n\n## Action: start-service\n- Parameters: ?s (server), ?svc (service)\n- Preconditions:\n  - Server ?s is online.\n  - It is not the case that server ?s runs service ?svc.\n- Effects:\n  - Server ?s runs service ?svc.\n  - Increase total-cost by 1.\n\n## Action: stop-service\n- Parameters: ?s (server), ?svc (service)\n- Preconditions:\n  - Server ?s is online.\n  - Server ?s runs service ?svc.\n- Effects:\n  - It is no longer the case that server ?s runs service ?svc.\n  - Increase total-cost by 1.\n\n## Action: assign-bucket\n- Parameters: ?b (bucket), ?s (server), ?r (region), ?svc (service)\n- Preconditions:\n  - Bucket ?b is unassigned.\n  - Server ?s is online.\n  - Bucket ?b is in region ?r.\n  - Server ?s is in region ?r.\n  - Bucket ?b requires service ?svc.\n  - Server ?s runs service ?svc.\n  - The load of server ?s is less than the capacity of server ?s.\n- Effects:\n  - Remove the condition that bucket ?b is unassigned.\n  - Bucket ?b is assigned to server ?s.\n  - Increase the load of server ?s by 1.\n  - Increase total-cost by 1.\n\n## Action: unassign-bucket\n- Parameters: ?b (bucket), ?s (server)\n- Preconditions:\n  - Bucket ?b is assigned to server ?s.\n- Effects:\n  - Bucket ?b is unassigned.\n  - It is no longer the case that bucket ?b is assigned to server ?s.\n  - Decrease the load of server ?s by 1.\n  - Increase total-cost by 1.\n\nFINAL CHECK\n- All action names are identical to the PDDL.\n- All Lisp syntax is removed and replaced with clear English sentences.\n- All preconditions and effects, including numeric changes and removals, are fully captured.",
+  "domain_prompt": "DOMAIN BRIEF\n\n# Summary\nThis domain models load balancing across servers in regions. Servers host services and can be powered on or off. Buckets belong to regions and require specific services. Buckets can be assigned to servers that are online, co-located in the same region, run the required service, and have available capacity. Actions incur a total-cost, and server load changes with bucket assignment and unassignment.\n\n# Object Types\n- server: Base object\n- region: Base object\n- service: Base object\n- bucket: Base object\n\n# Predicates & Functions\n- server-region: Server ?s is located in region ?r.\n- bucket-region: Bucket ?b is located in region ?r.\n- bucket-service: Bucket ?b requires service ?svc.\n- online: Server ?s is powered on.\n- runs: Server ?s runs service ?svc.\n- assigned-to: Bucket ?b is assigned to server ?s.\n- unassigned: Bucket ?b is currently not assigned to any server.\n- capacity: Numeric function giving the capacity of server ?s.\n- load: Numeric function giving the current load on server ?s (number of assigned buckets).\n- total-cost: Numeric function representing cumulative action cost.\n\n# Actions\n\n## Action: power-on\n- Parameters: ?s (server)\n- Preconditions:\n  - It is not the case that server ?s is online.\n- Effects:\n  - Server ?s is online.\n  - Increase total-cost by 1.\n\n## Action: power-off\n- Parameters: ?s (server)\n- Preconditions:\n  - Server ?s is online.\n  - The load of server ?s equals 0.\n- Effects:\n  - It is no longer the case that server ?s is online.\n  - Increase total-cost by 1.\n\n## Action: start-service\n- Parameters: ?s (server), ?svc (service)\n- Preconditions:\n  - Server ?s is online.\n  - It is not the case that server ?s runs service ?svc.\n- Effects:\n  - Server ?s runs service ?svc.\n  - Increase total-cost by 1.\n\n## Action: stop-service\n- Parameters: ?s (server), ?svc (service)\n- Preconditions:\n  - Server ?s is online.\n  - Server ?s runs service ?svc.\n- Effects:\n  - It is no longer the case that server ?s runs service ?svc.\n  - Increase total-cost by 1.\n\n## Action: assign-bucket\n- Parameters: ?b (bucket), ?s (server), ?r (region), ?svc (service)\n- Preconditions:\n  - Bucket ?b is unassigned.\n  - Server ?s is online.\n  - Bucket ?b is in region ?r.\n  - Server ?s is in region ?r.\n  - Bucket ?b requires service ?svc.\n  - Server ?s runs service ?svc.\n  - The load of server ?s is less than the capacity of server ?s.\n- Effects:\n  - Remove the condition that bucket ?b is unassigned.\n  - Bucket ?b is assigned to server ?s.\n  - Increase the load of server ?s by 1.\n  - Increase total-cost by 1.\n\n## Action: unassign-bucket\n- Parameters: ?b (bucket), ?s (server)\n- Preconditions:\n  - Bucket ?b is assigned to server ?s.\n- Effects:\n  - Bucket ?b is unassigned.\n  - It is no longer the case that bucket ?b is assigned to server ?s.\n  - Decrease the load of server ?s by 1.\n  - Increase total-cost by 1.",
   "actions": [
     {
       "name": "power-on",
@@ -225,7 +225,7 @@
     },
     {
       "id": "p02",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance is about assigning buckets to servers within the us_east region so that each bucket is placed on an online, co-located server that runs its required service, while respecting server capacities. The goal specifies exact target assignments for each bucket.\n\n# Objects\n- region: us_east\n- service: payments, search\n- server: s1_us, s2_us\n- bucket: b1, b2, b3\n\n# Initial State\n- total-cost is 0.\n- s1_us is in region us_east.\n- s2_us is in region us_east.\n- b1 is in region us_east.\n- b2 is in region us_east.\n- b3 is in region us_east.\n- b1 requires service payments.\n- b2 requires service payments.\n- b3 requires service search.\n- s1_us is online.\n- s2_us is online.\n- s1_us runs service payments.\n- s2_us runs service search.\n- b1 is unassigned.\n- b2 is unassigned.\n- b3 is unassigned.\n- The capacity of s1_us is 3.\n- The capacity of s2_us is 3.\n- The load of s1_us is 0.\n- The load of s2_us is 0.\n\n# Goal State\nThe plan is successful only when the following are TRUE\n- b1 is assigned to s1_us.\n- b2 is assigned to s1_us.\n- b3 is assigned to s2_us.\n\n# Optimization Metric\n- Minimize total-cost.\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are included.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance is about assigning buckets to servers within the us_east region so that each bucket is placed on an online, co-located server that runs its required service, while respecting server capacities. The goal specifies exact target assignments for each bucket.\n\n# Objects\n- region: us_east\n- service: payments, search\n- server: s1_us, s2_us\n- bucket: b1, b2, b3\n\n# Initial State\n- total-cost is 0.\n- s1_us is in region us_east.\n- s2_us is in region us_east.\n- b1 is in region us_east.\n- b2 is in region us_east.\n- b3 is in region us_east.\n- b1 requires service payments.\n- b2 requires service payments.\n- b3 requires service search.\n- s1_us is online.\n- s2_us is online.\n- s1_us runs service payments.\n- s2_us runs service search.\n- b1 is unassigned.\n- b2 is unassigned.\n- b3 is unassigned.\n- The capacity of s1_us is 3.\n- The capacity of s2_us is 3.\n- The load of s1_us is 0.\n- The load of s2_us is 0.\n\n# Goal State\nThe plan is successful only when the following are TRUE\n- b1 is assigned to s1_us.\n- b2 is assigned to s1_us.\n- b3 is assigned to s2_us.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
         "description": "Assign unassigned buckets in us_east to servers that already run the required services without exceeding capacity.",
         "initial_state": "Two online servers in us_east: s1_us runs payments, s2_us runs search, capacity 3 each. All buckets (b1, b2, b3) unassigned.",
@@ -312,11 +312,11 @@
     },
     {
       "id": "p03",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance is about assigning two buckets to a single server within the same region while ensuring the server runs the required services and capacity/load constraints are respected.\n\n# Objects\n- region: ap_south\n- service: analytics, search\n- server: s1_ap\n- bucket: b1, b2\n\n# Initial State\n- s1_ap is located in region ap_south.\n- b1 is located in region ap_south.\n- b2 is located in region ap_south.\n- b1 requires service analytics.\n- b2 requires service search.\n- s1_ap is online.\n- s1_ap runs service search.\n- b1 is unassigned.\n- b2 is unassigned.\n- The capacity of s1_ap is 1.\n- The load of s1_ap is 0.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- b1 is assigned to s1_ap.\n- b2 is assigned to s1_ap.\n\n# Optimization Metric\n- Minimize total-cost\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThe objective is to assign two buckets (b1, b2) to a specific server (s1_ap) in the ap_south region. The server must also be running the requisite services for the buckets.\n\n# Objects\n- region: ap_south\n- service: analytics, search\n- server: s1_ap\n- bucket: b1, b2\n\n# Initial State\n- s1_ap is located in region ap_south.\n- b1 is located in region ap_south.\n- b2 is located in region ap_south.\n- b1 requires service analytics.\n- b2 requires service search.\n- s1_ap is online.\n- s1_ap runs service search.\n- b1 is unassigned.\n- b2 is unassigned.\n- The capacity of s1_ap is 1.\n- The load of s1_ap is 0.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- b1 is assigned to s1_ap.\n- b2 is assigned to s1_ap.\n\n# Optimization Metric\n- Minimize total-cost",
       "overview": {
-        "description": "Enable analytics on the only server and assign both buckets to it while meeting per-bucket service requirements.",
-        "initial_state": "One server s1_ap in ap_south is online, capacity 1, running search only. Buckets b1 (analytics) and b2 (search) are unassigned.",
-        "goal": "b1 and b2 assigned to s1_ap; s1_ap runs analytics (for b1) and search (for b2); capacity respected."
+        "description": "The goal requires assigning two distinct buckets to the single available server s1_ap.",
+        "initial_state": "One server s1_ap (capacity 1) is online. Two buckets b1 and b2 are unassigned.",
+        "goal": "b1 and b2 must both be assigned to s1_ap."
       },
       "objects": [
         {
@@ -474,7 +474,7 @@
         }
       ],
       "optimal_cost": 7,
-      "difficulty": "Medium"
+      "difficulty": "medium"
     },
     {
       "id": "p05",
@@ -582,7 +582,7 @@
         }
       ],
       "optimal_cost": 4,
-      "difficulty": "Medium"
+      "difficulty": "medium"
     },
     {
       "id": "p06",
@@ -679,7 +679,7 @@
         }
       ],
       "optimal_cost": 5,
-      "difficulty": "Medium"
+      "difficulty": "medium"
     },
     {
       "id": "p07",
@@ -793,15 +793,15 @@
         }
       ],
       "optimal_cost": 3,
-      "difficulty": "Medium"
+      "difficulty": "medium"
     },
     {
       "id": "p08",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance configures load balancing across two regions (us_east and eu_west). Certain buckets require specific services and are either assigned to servers or unassigned. Some current assignments violate region co-location. The objective is to consolidate all us_east buckets onto s2_us, all eu_west buckets onto s3_eu, and decommission s1_us, while minimizing total-cost.\n\n# Objects\n- region: us_east, eu_west\n- service: search, ads\n- server: s1_us, s2_us, s3_eu, s4_eu\n- bucket: b1, b2, b3, b4, b5, b6\n\n# Initial State\n- s1_us is in region us_east.\n- s2_us is in region us_east.\n- s3_eu is in region eu_west.\n- s4_eu is in region eu_west.\n- b1 is in region us_east.\n- b2 is in region us_east.\n- b3 is in region us_east.\n- b4 is in region eu_west.\n- b5 is in region eu_west.\n- b6 is in region eu_west.\n- b1 requires service search.\n- b2 requires service search.\n- b3 requires service ads.\n- b4 requires service search.\n- b5 requires service search.\n- b6 requires service ads.\n- s1_us is online.\n- s2_us is online.\n- s3_eu is online.\n- s4_eu is not online.\n- s1_us runs service search.\n- s2_us runs service search.\n- s2_us runs service ads.\n- s3_eu runs service search.\n- b1 is assigned to s1_us.\n- b2 is assigned to s2_us.\n- b3 is assigned to s2_us.\n- b4 is assigned to s1_us.\n- b5 is unassigned.\n- b6 is unassigned.\n- The capacity of s1_us is 3.\n- The capacity of s2_us is 3.\n- The capacity of s3_eu is 2.\n- The capacity of s4_eu is 3.\n- The load of s1_us is 2.\n- The load of s2_us is 2.\n- The load of s3_eu is 0.\n- The load of s4_eu is 0.\n- The total-cost is 0.\n\n# Goal State\nThe plan is successful only when the following are TRUE\n- b1 is assigned to s2_us.\n- b2 is assigned to s2_us.\n- b3 is assigned to s2_us.\n- b4 is assigned to s3_eu.\n- b5 is assigned to s3_eu.\n- b6 is assigned to s3_eu.\n- s2_us is online.\n- s3_eu is online.\n- s1_us is not online.\n\n# Optimization Metric\n- Minimize total-cost.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance involves two regions (us_east and eu_west). The objective is to alter the current configuration such that all us_east buckets are on s2_us, all eu_west buckets are on s3_eu, and s1_us is decommissioned (offline).\n\n# Objects\n- region: us_east, eu_west\n- service: search, ads\n- server: s1_us, s2_us, s3_eu, s4_eu\n- bucket: b1, b2, b3, b4, b5, b6\n\n# Initial State\n- s1_us is in region us_east.\n- s2_us is in region us_east.\n- s3_eu is in region eu_west.\n- s4_eu is in region eu_west.\n- b1, b2, b3 are in region us_east.\n- b4, b5, b6 are in region eu_west.\n- b1 requires service search.\n- b2 requires service search.\n- b3 requires service ads.\n- b4 requires service search.\n- b5 requires service search.\n- b6 requires service ads.\n- s1_us is online.\n- s2_us is online.\n- s3_eu is online.\n- s4_eu is not online.\n- s1_us runs service search.\n- s2_us runs service search.\n- s2_us runs service ads.\n- s3_eu runs service search.\n- b1 is assigned to s1_us.\n- b2 is assigned to s2_us.\n- b3 is assigned to s2_us.\n- b4 is assigned to s1_us.\n- b5 is unassigned.\n- b6 is unassigned.\n- The capacity of s1_us is 3.\n- The capacity of s2_us is 3.\n- The capacity of s3_eu is 2.\n- The capacity of s4_eu is 3.\n- The load of s1_us is 2.\n- The load of s2_us is 2.\n- The load of s3_eu is 0.\n- The load of s4_eu is 0.\n- The total-cost is 0.\n\n# Goal State\nThe plan is successful only when the following are TRUE\n- b1 is assigned to s2_us.\n- b2 is assigned to s2_us.\n- b3 is assigned to s2_us.\n- b4 is assigned to s3_eu.\n- b5 is assigned to s3_eu.\n- b6 is assigned to s3_eu.\n- s2_us is online.\n- s3_eu is online.\n- s1_us is not online.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
-        "description": "Fix cross-region misrouting, ensure ads capability exists in eu_west, and decommission s1_us while serving all buckets in correct regions within capacity.",
-        "initial_state": "us_east: s1_us online runs search; s2_us online runs search+ads. eu_west: s3_eu online runs search; s4_eu offline. b1 on s1_us; b2,b3 on s2_us; b4 misrouted on s1_us; b5,b6 unassigned.",
-        "goal": "All buckets served in correct region by correct service; final state has s1_us drained and powered off; all eu_west buckets (b4,b5,b6) served; never exceed capacity."
+        "description": "The goal involves consolidating specific buckets onto designated servers: buckets b4, b5, and b6 must be assigned to s3_eu, and b1, b2, b3 to s2_us.",
+        "initial_state": "us_east: s1_us (cap 3), s2_us (cap 3). eu_west: s3_eu (cap 2). b4, b5, b6 are eu_west buckets.",
+        "goal": "Assign b4, b5, b6 to s3_eu; assign b1, b2, b3 to s2_us; decommission s1_us."
       },
       "objects": [
         {
@@ -831,7 +831,7 @@
         {
           "name": "s1_us",
           "kind": "server",
-          "summary": "Search-only server to be decommissioned.",
+          "summary": "Server to be decommissioned.",
           "attributes": {
             "region": "us_east",
             "capacity": 3,
@@ -844,7 +844,7 @@
         {
           "name": "s2_us",
           "kind": "server",
-          "summary": "Search+ads server to keep for us_east.",
+          "summary": "Target server for us_east buckets.",
           "attributes": {
             "region": "us_east",
             "capacity": 3,
@@ -858,7 +858,7 @@
         {
           "name": "s3_eu",
           "kind": "server",
-          "summary": "Search-only server in eu_west.",
+          "summary": "Target server for eu_west buckets.",
           "attributes": {
             "region": "eu_west",
             "capacity": 2,
@@ -871,7 +871,7 @@
         {
           "name": "s4_eu",
           "kind": "server",
-          "summary": "Offline server in eu_west (may be powered on and configured).",
+          "summary": "Offline server in eu_west.",
           "attributes": {
             "region": "eu_west",
             "capacity": 3,
@@ -912,7 +912,7 @@
         {
           "name": "b4",
           "kind": "bucket",
-          "summary": "eu_west search bucket b4 (misrouted).",
+          "summary": "eu_west search bucket b4.",
           "attributes": {
             "region": "eu_west",
             "requires_service": "search",

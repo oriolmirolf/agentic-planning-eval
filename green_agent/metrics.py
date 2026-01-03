@@ -19,6 +19,27 @@ _ADVICE_HDR_RE = re.compile(
 #  -> capture atom + desired truth value
 _ADVICE_SET_RE = re.compile(r"Set\s*\(([^)]+)\)\s*to\s*(true|false)", re.IGNORECASE)
 
+def is_plan_unsolvable(text: str) -> bool:
+    """
+    Detects if the model claimed the instance is unsolvable.
+    Handles:
+      UNSOLVABLE
+      ```UNSOLVABLE```
+      ```text\nUNSOLVABLE\n```
+    """
+    if not text:
+        return False
+
+    # Normalize: remove markdown fences and whitespace
+    clean = text.replace("```", "").strip().upper()
+
+    # Check for exact keyword or single line
+    if clean == "UNSOLVABLE":
+        return True
+
+    # Check if it appears as a distinct line in a larger block
+    lines = [L.strip().upper() for L in text.splitlines()]
+    return "UNSOLVABLE" in lines
 
 @dataclass(slots=True)
 class PlanMetrics:
@@ -115,7 +136,35 @@ def compute_metrics(
     val_path: str | None = None,
     flags: tuple[str, ...] = ("-v",),
     check_redundancy: bool = False,
+    is_ground_truth_solvable: bool = True,
 ) -> PlanMetrics:
+    # 1. Check for Unsolvable Claim
+    if is_plan_unsolvable(plan_text):
+        # If the problem is actually unsolvable, this "plan" is valid (correct refusal).
+        # If the problem IS solvable, this is a False Negative (invalid plan).
+        is_correct_refusal = (not is_ground_truth_solvable)
+        
+        return PlanMetrics(
+            valid=is_correct_refusal,
+            length=0,
+            cost_value=None,
+            first_failure_at=None,
+            unsat_count=0,
+            redundant_indices=None,
+            failure_reason="DECLARED_UNSOLVABLE" if is_correct_refusal else "FALSE_NEGATIVE_UNSOLVABLE",
+            first_failed_action=None,
+            first_failure_reason=None,
+            first_failure_detail=None,
+            advice_count=0,
+            advice_top_predicates=[],
+            val_stdout="",
+            val_stderr="",
+            steps=[],
+            val_attempts=0,
+            val_warning=None,
+        )
+
+    # 2. Standard VAL Logic
     base = run_val(domain, problem, plan_text, val_path=val_path, flags=flags)
 
     length = len([ln for ln in plan_text.splitlines() if ln.strip().startswith("(")])
@@ -189,14 +238,25 @@ def compute_metrics(
             f"{detail_bits}."
         )
 
+    # 3. Handle False Positive (Valid plan for unsolvable problem)
+    # If VAL says valid (base.ok) but the problem is actually unsolvable, 
+    # then the model hallucinated a solution (likely due to a bug in PDDL or loose validation).
+    # We mark validity as False for the final metric.
+    final_validity = base.ok
+    final_failure_reason = base.failure_reason
+
+    if base.ok and not is_ground_truth_solvable:
+        final_validity = False
+        final_failure_reason = "FALSE_POSITIVE_SOLVABLE"
+
     return PlanMetrics(
-        valid=base.ok,
+        valid=final_validity,
         length=length,
         cost_value=base.value,
         first_failure_at=first_fail,
         unsat_count=len(base.unsatisfied),
         redundant_indices=redundant,
-        failure_reason=base.failure_reason,
+        failure_reason=final_failure_reason,
         first_failed_action=first_failed_action,
         first_failure_reason=first_failure_reason,
         first_failure_detail=first_failure_detail,
@@ -210,4 +270,3 @@ def compute_metrics(
     )
 
 
-# ----------------------------------------

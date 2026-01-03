@@ -1,5 +1,5 @@
 {
-  "domain_prompt": "DOMAIN BRIEF\n\n# Summary\nThis domain models hospital bed management. Patients are admitted to, transferred between, and discharged from beds in wards. Beds can be free, dirty, or blocked, and some patients require isolation-capable beds. Actions update patient and bed states and accumulate total-cost.\n\n# Object Types\n- patient: Base object\n- bed: Base object\n- ward: Base object\n\n# Predicates & Functions\n- patient-ward ?p ?w: Patient ?p requires ward ?w.\n- bed-ward ?b ?w: Bed ?b belongs to ward ?w.\n- isolation-required ?p: Patient ?p requires isolation.\n- isolation-bed ?b: Bed ?b is isolation-capable.\n- waiting ?p: Patient ?p is waiting for admission.\n- in-bed ?p ?b: Patient ?p is currently in bed ?b.\n- discharged ?p: Patient ?p has been discharged.\n- bed-free ?b: Bed ?b is empty and usable.\n- bed-dirty ?b: Bed ?b needs cleaning before use.\n- bed-blocked ?b: Bed ?b is unavailable (maintenance or reserved).\n- total-cost: Cumulative action cost metric.\n\n# Actions\n\n## Action: admit\n- Parameters: ?p (patient), ?b (bed), ?w (ward)\n- Preconditions:\n  - Patient ?p is waiting.\n  - It is not the case that patient ?p is discharged.\n  - Bed ?b is bed-free.\n  - It is not the case that bed ?b is bed-dirty.\n  - It is not the case that bed ?b is bed-blocked.\n  - Patient-ward ?p ?w holds: patient ?p requires ward ?w.\n  - Bed-ward ?b ?w holds: bed ?b belongs to the same ward ?w.\n  - Either it is not the case that isolation-required ?p, or isolation-bed ?b holds. In other words: if patient ?p requires isolation, then bed ?b must be isolation-bed.\n- Effects:\n  - It is no longer the case that patient ?p is waiting.\n  - Patient ?p is in-bed ?b.\n  - It is no longer the case that bed ?b is bed-free.\n  - Increase total-cost by 1.\n\n## Action: transfer\n- Parameters: ?p (patient), ?from (bed), ?to (bed), ?w (ward)\n- Preconditions:\n  - Patient ?p is in-bed ?from.\n  - Bed ?to is bed-free.\n  - It is not the case that bed ?to is bed-dirty.\n  - It is not the case that bed ?to is bed-blocked.\n  - Patient-ward ?p ?w holds: patient ?p requires ward ?w.\n  - Bed-ward ?to ?w holds: bed ?to belongs to the same ward ?w.\n  - Either it is not the case that isolation-required ?p, or isolation-bed ?to holds. In other words: if patient ?p requires isolation, then bed ?to must be isolation-bed.\n- Effects:\n  - Patient ?p is in-bed ?to.\n  - It is no longer the case that patient ?p is in-bed ?from.\n  - Bed ?from becomes bed-dirty.\n  - It is no longer the case that bed ?to is bed-free.\n  - Increase total-cost by 1.\n\n## Action: discharge\n- Parameters: ?p (patient), ?b (bed)\n- Preconditions:\n  - Patient ?p is in-bed ?b.\n- Effects:\n  - Patient ?p becomes discharged.\n  - It is no longer the case that patient ?p is in-bed ?b.\n  - Bed ?b becomes bed-dirty.\n  - Increase total-cost by 1.\n\n## Action: clean-bed\n- Parameters: ?b (bed)\n- Preconditions:\n  - Bed ?b is bed-dirty.\n  - It is not the case that bed ?b is bed-blocked.\n- Effects:\n  - It is no longer the case that bed ?b is bed-dirty.\n  - Bed ?b becomes bed-free.\n  - Increase total-cost by 1.\n\n## Action: block-bed\n- Parameters: ?b (bed)\n- Preconditions:\n  - Bed ?b is bed-free.\n  - It is not the case that bed ?b is bed-blocked.\n- Effects:\n  - Bed ?b becomes bed-blocked.\n  - It is no longer the case that bed ?b is bed-free.\n  - Increase total-cost by 1.\n\n## Action: unblock-bed\n- Parameters: ?b (bed)\n- Preconditions:\n  - Bed ?b is bed-blocked.\n- Effects:\n  - It is no longer the case that bed ?b is bed-blocked.\n  - Bed ?b becomes bed-free.\n  - Increase total-cost by 1.\n\nFINAL CHECK\n- All action names are identical to the PDDL.\n- All Lisp syntax is removed and replaced with clear English statements.\n- Preconditions and effects for every action are fully and precisely translated, including disjunctive and negative conditions and all numeric cost changes.",
+  "domain_prompt": "DOMAIN BRIEF\n\n# Summary\nThis domain models hospital bed management. Patients are admitted to, transferred between, and discharged from beds in wards. Beds can be free, dirty, or blocked, and some patients require isolation-capable beds. Actions update patient and bed states and accumulate total-cost.\n\n# Object Types\n- patient: Base object\n- bed: Base object\n- ward: Base object\n\n# Predicates & Functions\n- patient-ward ?p ?w: Patient ?p requires ward ?w.\n- bed-ward ?b ?w: Bed ?b belongs to ward ?w.\n- isolation-required ?p: Patient ?p requires isolation.\n- isolation-bed ?b: Bed ?b is isolation-capable.\n- waiting ?p: Patient ?p is waiting for admission.\n- in-bed ?p ?b: Patient ?p is currently in bed ?b.\n- discharged ?p: Patient ?p has been discharged.\n- bed-free ?b: Bed ?b is empty and usable.\n- bed-dirty ?b: Bed ?b needs cleaning before use.\n- bed-blocked ?b: Bed ?b is unavailable (maintenance or reserved).\n- total-cost: Cumulative action cost metric.\n\n# Actions\n\n## Action: admit\n- Parameters: ?p (patient), ?b (bed), ?w (ward)\n- Preconditions:\n  - Patient ?p is waiting.\n  - It is not the case that patient ?p is discharged.\n  - Bed ?b is bed-free.\n  - It is not the case that bed ?b is bed-dirty.\n  - It is not the case that bed ?b is bed-blocked.\n  - Patient-ward ?p ?w holds: patient ?p requires ward ?w.\n  - Bed-ward ?b ?w holds: bed ?b belongs to the same ward ?w.\n  - Either it is not the case that isolation-required ?p, or isolation-bed ?b holds. In other words: if patient ?p requires isolation, then bed ?b must be isolation-bed.\n- Effects:\n  - It is no longer the case that patient ?p is waiting.\n  - Patient ?p is in-bed ?b.\n  - It is no longer the case that bed ?b is bed-free.\n  - Increase total-cost by 1.\n\n## Action: transfer\n- Parameters: ?p (patient), ?from (bed), ?to (bed), ?w (ward)\n- Preconditions:\n  - Patient ?p is in-bed ?from.\n  - Bed ?to is bed-free.\n  - It is not the case that bed ?to is bed-dirty.\n  - It is not the case that bed ?to is bed-blocked.\n  - Patient-ward ?p ?w holds: patient ?p requires ward ?w.\n  - Bed-ward ?to ?w holds: bed ?to belongs to the same ward ?w.\n  - Either it is not the case that isolation-required ?p, or isolation-bed ?to holds. In other words: if patient ?p requires isolation, then bed ?to must be isolation-bed.\n- Effects:\n  - Patient ?p is in-bed ?to.\n  - It is no longer the case that patient ?p is in-bed ?from.\n  - Bed ?from becomes bed-dirty.\n  - It is no longer the case that bed ?to is bed-free.\n  - Increase total-cost by 1.\n\n## Action: discharge\n- Parameters: ?p (patient), ?b (bed)\n- Preconditions:\n  - Patient ?p is in-bed ?b.\n- Effects:\n  - Patient ?p becomes discharged.\n  - It is no longer the case that patient ?p is in-bed ?b.\n  - Bed ?b becomes bed-dirty.\n  - Increase total-cost by 1.\n\n## Action: clean-bed\n- Parameters: ?b (bed)\n- Preconditions:\n  - Bed ?b is bed-dirty.\n  - It is not the case that bed ?b is bed-blocked.\n- Effects:\n  - It is no longer the case that bed ?b is bed-dirty.\n  - Bed ?b becomes bed-free.\n  - Increase total-cost by 1.\n\n## Action: block-bed\n- Parameters: ?b (bed)\n- Preconditions:\n  - Bed ?b is bed-free.\n  - It is not the case that bed ?b is bed-blocked.\n- Effects:\n  - Bed ?b becomes bed-blocked.\n  - It is no longer the case that bed ?b is bed-free.\n  - Increase total-cost by 1.\n\n## Action: unblock-bed\n- Parameters: ?b (bed)\n- Preconditions:\n  - Bed ?b is bed-blocked.\n- Effects:\n  - It is no longer the case that bed ?b is bed-blocked.\n  - Bed ?b becomes bed-free.\n  - Increase total-cost by 1.",
   "actions": [
     {
       "name": "admit",
@@ -227,7 +227,7 @@
     },
     {
       "id": "p02",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance involves admitting a single patient into a specific bed within a medical ward, starting from a situation where one bed is dirty and another is blocked.\n\n# Objects\n- patient: p1\n- bed: b1, b2\n- ward: w_med\n\n# Initial State\n- p1 requires ward w_med.\n- b1 belongs to ward w_med.\n- b2 belongs to ward w_med.\n- p1 is waiting for admission.\n- b1 is bed-dirty.\n- b2 is bed-blocked.\n- total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p1 is in-bed b1.\n\n# Optimization Metric\n- Minimize total-cost.\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance involves admitting a single patient into a specific bed within a medical ward, starting from a situation where one bed is dirty and another is blocked.\n\n# Objects\n- patient: p1\n- bed: b1, b2\n- ward: w_med\n\n# Initial State\n- p1 requires ward w_med.\n- b1 belongs to ward w_med.\n- b2 belongs to ward w_med.\n- p1 is waiting for admission.\n- b1 is bed-dirty.\n- b2 is bed-blocked.\n- total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p1 is in-bed b1.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
         "description": "Clean a dirty medical bed and admit a waiting patient; the other bed is blocked.",
         "initial_state": "p1 waiting. b1 is dirty. b2 is blocked.",
@@ -282,11 +282,11 @@
     },
     {
       "id": "p03",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance involves moving a single patient to a specific target bed (b_icu). The patient requires the ICU ward (w_icu).\n\n# Objects\n- patient: p1\n- bed: b_icu, b_med\n- ward: w_icu, w_med\n\n# Initial State\n- p1 requires ward w_icu.\n- b_icu belongs to ward w_med. (Note: This bed is not in the ICU ward).\n- b_med belongs to ward w_med.\n- p1 is in bed b_med.\n- b_icu is free.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p1 is in bed b_icu.\n\n# Optimization Metric\n- Minimize total-cost\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance involves moving a single patient (p1) to a specific target bed (b_icu). The patient requires the ICU ward (w_icu).\n\n# Objects\n- patient: p1\n- bed: b_icu, b_med\n- ward: w_icu, w_med\n\n# Initial State\n- p1 requires ward w_icu.\n- b_icu belongs to ward w_med.\n- b_med belongs to ward w_med.\n- p1 is in bed b_med.\n- b_icu is free.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p1 is in bed b_icu.\n\n# Optimization Metric\n- Minimize total-cost",
       "overview": {
-        "description": "Move patient p1 to bed b_icu.",
-        "initial_state": "p1 needs w_icu. b_icu is free but belongs to w_med (Type Mismatch).",
-        "goal": "p1 is in bed b_icu (Impossible due to ward mismatch)."
+        "description": "Move patient p1 from their current bed to bed b_icu.",
+        "initial_state": "p1 (requires w_icu) is in b_med. b_icu is free and belongs to w_med.",
+        "goal": "p1 is in bed b_icu."
       },
       "objects": [
         {
@@ -315,7 +315,7 @@
         {
           "name": "b_icu",
           "kind": "bed",
-          "summary": "Free bed, but zoned for Medical ward.",
+          "summary": "Free bed in Medical ward.",
           "attributes": {
             "ward": "w_med",
             "bed_free": true,
@@ -334,11 +334,11 @@
         }
       ],
       "optimal_cost": -1,
-      "difficulty": "easy"
+      "difficulty": "Easy"
     },
     {
       "id": "p04",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nManage hospital beds so that an emergency patient is placed in the ICU bed, and both medical patients occupy medical beds in their specified configuration.\n\n# Objects\n- patient: p_emerg, p_medA, p_medB\n- bed: b_icu1, b_med1, b_med2\n- ward: w_icu, w_med\n\n# Initial State\n- p_emerg requires ward w_icu.\n- p_medA requires ward w_med.\n- p_medB requires ward w_med.\n- b_icu1 belongs to ward w_icu.\n- b_med1 belongs to ward w_med.\n- b_med2 belongs to ward w_med.\n- b_med2 is bed-dirty.\n- p_medA is in bed b_icu1.\n- p_medB is in bed b_med1.\n- p_emerg is waiting.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p_emerg is in bed b_icu1.\n- p_medA is in bed b_med1.\n- p_medB is in bed b_med2.\n\n# Optimization Metric\n- Minimize total-cost.\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are included.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nManage hospital beds so that an emergency patient is placed in the ICU bed, and both medical patients occupy medical beds in their specified configuration.\n\n# Objects\n- patient: p_emerg, p_medA, p_medB\n- bed: b_icu1, b_med1, b_med2\n- ward: w_icu, w_med\n\n# Initial State\n- p_emerg requires ward w_icu.\n- p_medA requires ward w_med.\n- p_medB requires ward w_med.\n- b_icu1 belongs to ward w_icu.\n- b_med1 belongs to ward w_med.\n- b_med2 belongs to ward w_med.\n- b_med2 is bed-dirty.\n- p_medA is in bed b_icu1.\n- p_medB is in bed b_med1.\n- p_emerg is waiting.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p_emerg is in bed b_icu1.\n- p_medA is in bed b_med1.\n- p_medB is in bed b_med2.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
         "description": "Reallocate beds to free ICU capacity and place med patients into med beds, including cleaning capacity.",
         "initial_state": "ICU bed is occupied by a med overflow patient; one med bed occupied; another med bed is dirty; ICU patient is waiting.",
@@ -587,11 +587,11 @@
     },
     {
       "id": "p06",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance concerns reassigning three patients to correct beds. The patients are currently in a cyclic deadlock (A in B's bed, B in C's bed, C in A's bed). There are no spare beds available.\n\n# Objects\n- patient: p_icu, p_surg, p_med\n- bed: b_icu1, b_surg1, b_med1\n- ward: w_icu, w_surg, w_med\n\n# Initial State\n- p_icu requires ward w_icu.\n- p_surg requires ward w_surg.\n- p_med requires ward w_med.\n- b_icu1 belongs to ward w_icu.\n- b_surg1 belongs to ward w_surg.\n- b_med1 belongs to ward w_med.\n- p_icu is in bed b_surg1.\n- p_surg is in bed b_med1.\n- p_med is in bed b_icu1.\n- The total-cost is 0.\n- (Note: No beds are free).\n\n# Goal State\n- p_icu is in bed b_icu1.\n- p_surg is in bed b_surg1.\n- p_med is in bed b_med1.\n\n# Optimization Metric\n- Minimize total-cost.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance involves three patients (p_icu, p_surg, p_med) and three beds. Each patient is currently occupying a bed that belongs to a different ward than the one they require. The objective is to reassign every patient to a specific bed in their correct ward.\n\n# Objects\n- patient: p_icu, p_surg, p_med\n- bed: b_icu1, b_surg1, b_med1\n- ward: w_icu, w_surg, w_med\n\n# Initial State\n- p_icu requires ward w_icu.\n- p_surg requires ward w_surg.\n- p_med requires ward w_med.\n- b_icu1 belongs to ward w_icu.\n- b_surg1 belongs to ward w_surg.\n- b_med1 belongs to ward w_med.\n- p_icu is in bed b_surg1.\n- p_surg is in bed b_med1.\n- p_med is in bed b_icu1.\n- The total-cost is 0.\n- No beds are free.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p_icu is in bed b_icu1.\n- p_surg is in bed b_surg1.\n- p_med is in bed b_med1.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
-        "description": "Resolve a 3-cycle of misplacements with zero buffer beds.",
-        "initial_state": "3 patients occupy all 3 available beds in a cyclic mismatch. No free beds to initiate a transfer.",
-        "goal": "All patients placed correctly (Impossible deadlock)."
+        "description": "Reassign all three patients to their respective target beds.",
+        "initial_state": "3 patients, 3 beds. p_icu is in b_surg1; p_surg is in b_med1; p_med is in b_icu1. All beds are occupied.",
+        "goal": "p_icu in b_icu1; p_surg in b_surg1; p_med in b_med1."
       },
       "objects": [
         {
@@ -615,7 +615,7 @@
         {
           "name": "p_icu",
           "kind": "patient",
-          "summary": "ICU patient misplaced in surgery.",
+          "summary": "ICU patient.",
           "attributes": {
             "required_ward": "w_icu",
             "current_bed": "b_surg1"
@@ -624,7 +624,7 @@
         {
           "name": "p_surg",
           "kind": "patient",
-          "summary": "Surgical patient misplaced in medical bed.",
+          "summary": "Surgical patient.",
           "attributes": {
             "required_ward": "w_surg",
             "current_bed": "b_med1"
@@ -633,7 +633,7 @@
         {
           "name": "p_med",
           "kind": "patient",
-          "summary": "Medical patient misplaced in ICU bed.",
+          "summary": "Medical patient.",
           "attributes": {
             "required_ward": "w_med",
             "current_bed": "b_icu1"
@@ -642,7 +642,7 @@
         {
           "name": "b_icu1",
           "kind": "bed",
-          "summary": "ICU bed 1 occupied by p_med.",
+          "summary": "ICU bed (occupied).",
           "attributes": {
             "ward": "w_icu",
             "bed_free": false
@@ -651,7 +651,7 @@
         {
           "name": "b_surg1",
           "kind": "bed",
-          "summary": "Surgery bed occupied by p_icu.",
+          "summary": "Surgery bed (occupied).",
           "attributes": {
             "ward": "w_surg",
             "bed_free": false
@@ -660,7 +660,7 @@
         {
           "name": "b_med1",
           "kind": "bed",
-          "summary": "Medical bed occupied by p_surg.",
+          "summary": "Medical bed (occupied).",
           "attributes": {
             "ward": "w_med",
             "bed_free": false
@@ -668,7 +668,7 @@
         }
       ],
       "optimal_cost": -1,
-      "difficulty": "hard"
+      "difficulty": "Hard"
     },
     {
       "id": "p07",
@@ -952,7 +952,7 @@
     },
     {
       "id": "p09",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nManage patient placements within a single ward. Two patients are already in beds, a third patient is waiting. One bed is blocked and dirty. Arrange beds so that p1 remains where they are, p2 ends up in b3, and p3 is admitted to b2.\n\n# Objects\n- patient: p1, p2, p3\n- bed: b1, b2, b3\n- ward: w_med\n\n# Initial State\n- p1 requires ward w_med.\n- p2 requires ward w_med.\n- p3 requires ward w_med.\n- b1 belongs to ward w_med.\n- b2 belongs to ward w_med.\n- b3 belongs to ward w_med.\n- p1 is in bed b1.\n- p2 is in bed b2.\n- b3 is blocked.\n- b3 is dirty.\n- p3 is waiting for admission.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p1 is in bed b1.\n- p2 is in bed b3.\n- p3 is in bed b2.\n\n# Optimization Metric\n- Minimize total-cost.\n\nFINAL CHECK\n- All object names are exact: p1, p2, p3, b1, b2, b3, w_med.\n- No Lisp syntax is used.\n- No hints or plans are included.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nManage patient placements within a single ward. Two patients are already in beds, a third patient is waiting. One bed is blocked and dirty. Arrange beds so that p1 remains where they are, p2 ends up in b3, and p3 is admitted to b2.\n\n# Objects\n- patient: p1, p2, p3\n- bed: b1, b2, b3\n- ward: w_med\n\n# Initial State\n- p1 requires ward w_med.\n- p2 requires ward w_med.\n- p3 requires ward w_med.\n- b1 belongs to ward w_med.\n- b2 belongs to ward w_med.\n- b3 belongs to ward w_med.\n- p1 is in bed b1.\n- p2 is in bed b2.\n- b3 is blocked.\n- b3 is dirty.\n- p3 is waiting for admission.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p1 is in bed b1.\n- p2 is in bed b3.\n- p3 is in bed b2.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
         "description": "Prepare a blocked+dirty bed, relocate a patient, then admit a waiting patient into the freed bed.",
         "initial_state": "Two beds occupied; third bed is blocked and dirty; one patient is waiting.",

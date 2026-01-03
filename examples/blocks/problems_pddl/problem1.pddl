@@ -1,12 +1,12 @@
 ;; Problem 1: build a three‑block tower from three blocks on the table
-;; Initial state: A, B and C are each on the table and clear with an empty arm
-;; Goal: stack A on B and B on C【789902751098195†L118-L198】.
+;; Initial state: blo_c80dc9, blo_0c8fa4 and blo_5ce8c5 are each on the table and clear with an empty arm
+;; Goal: stack blo_c80dc9 on blo_0c8fa4 and blo_0c8fa4 on blo_5ce8c5【789902751098195†L118-L198】.
 
 (define (problem p01)
   (:domain blocksworld)
-  (:objects A B C)
+  (:objects blo_c80dc9 blo_0c8fa4 blo_5ce8c5)
   (:init (arm-empty)
-         (on-table A) (on-table B) (on-table C)
-         (clear A) (clear B) (clear C))
-  (:goal (and (on A B) (on B C)))
+         (on-table blo_c80dc9) (on-table blo_0c8fa4) (on-table blo_5ce8c5)
+         (clear blo_c80dc9) (clear blo_0c8fa4) (clear blo_5ce8c5))
+  (:goal (and (on blo_c80dc9 blo_0c8fa4) (on blo_0c8fa4 blo_5ce8c5)))
 )
