@@ -26,7 +26,9 @@
     (unassigned b1)
     (unassigned b2)
 
-    (= (capacity s1_ap) 3)
+    ;; UNSOLVABLE MODIFICATION: Capacity reduced from 3 to 1
+    ;; Goal requires putting b1 AND b2 (2 items) here.
+    (= (capacity s1_ap) 1)
     (= (load s1_ap) 0)
   )
 

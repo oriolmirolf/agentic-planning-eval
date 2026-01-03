@@ -53,7 +53,10 @@
 
     (= (capacity s1_us) 3)
     (= (capacity s2_us) 3)
-    (= (capacity s3_eu) 3)
+    
+    ;; UNSOLVABLE MODIFICATION: Capacity reduced from 3 to 2
+    ;; Goal requires assigning b4, b5, b6 (3 items) to s3_eu.
+    (= (capacity s3_eu) 2)
     (= (capacity s4_eu) 3)
 
     (= (load s1_us) 2) ; b1, b4
@@ -62,10 +65,6 @@
     (= (load s4_eu) 0)
   )
 
-  ;; Canonical goal:
-  ;; - us-east all traffic on s2_us (b1,b2,b3)
-  ;; - eu-west all traffic on s3_eu (b4,b5,b6)
-  ;; - s1_us decommissioned
   (:goal
     (and
       (assigned-to b1 s2_us)

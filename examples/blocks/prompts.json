@@ -230,11 +230,11 @@
     },
     {
       "id": "p05",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nReverse a four-block tower using a single robot arm: transform a tower with D on C on B on A into the reversed order with A on B on C on D.\n\n# Objects\n- Objects: A, B, C, D\n\n# Initial State\n- The robot\u2019s arm is empty.\n- A is on the table.\n- B is on A.\n- C is on B.\n- D is on C.\n- D is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n- C is on D.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names match exactly: A, B, C, D.\n- No Lisp syntax is used.\n- No hints or plans are included.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance presents a block manipulation task starting with a single tower D on C on B on A. The objective is to rearrange the blocks to form a specific closed-loop configuration.\n\n# Objects\n- Objects: A, B, C, D\n\n# Initial State\n- The robot\u2019s arm is empty.\n- A is on the table.\n- B is on A.\n- C is on B.\n- D is on C.\n- D is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n- C is on A.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names match exactly: A, B, C, D.\n- No Lisp syntax is used.\n- No hints or plans are included.",
       "overview": {
-        "description": "Invert a full stack into the opposite ordering.",
+        "description": "Attempt to create a circular stacking configuration (A on B, B on C, C on A).",
         "initial_state": "D on C on B on A (A on the table). D is clear; the hand is empty.",
-        "goal": "A on B on C on D (top->bottom: A, B, C, D)."
+        "goal": "A on B, B on C, and C on A (Impossible Cycle)."
       },
       "objects": [
         {
@@ -262,7 +262,7 @@
           "attributes": {}
         }
       ],
-      "optimal_cost": 8,
+      "optimal_cost": -1,
       "difficulty": "medium"
     },
     {
@@ -310,11 +310,11 @@
     },
     {
       "id": "p07",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nMerge two existing towers of blocks into a single five-block tower with a specified top-to-bottom order.\n\n# Objects\n- Objects: A, B, C, D, E\n\n# Initial State\n- The robot\u2019s arm is empty.\n- B is on A.\n- C is on B.\n- A is on the table.\n- E is on D.\n- D is on the table.\n- C is clear.\n- E is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- B is on C.\n- C is on D.\n- D is on E.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names (A, B, C, D, E) match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nMerge two existing towers of blocks into a new configuration. The goal specifies the position of block A relative to both B and C simultaneously.\n\n# Objects\n- Objects: A, B, C, D, E\n\n# Initial State\n- The robot\u2019s arm is empty.\n- B is on A.\n- C is on B.\n- A is on the table.\n- E is on D.\n- D is on the table.\n- C is clear.\n- E is clear.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- A is on B.\n- A is on C.\n- C is on D.\n- D is on E.\n\n# Optimization Metric\n- None - Just satisfy goals.\n\nFINAL CHECK\n- All object names (A, B, C, D, E) match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
       "overview": {
-        "description": "Merge two existing stacks into one target ordering.",
+        "description": "Attempt to stack A on two different blocks (B and C) simultaneously.",
         "initial_state": "C on B on A (A on the table) and E on D (D on the table). C and E are clear; the hand is empty.",
-        "goal": "A on B on C on D on E (top->bottom: A, B, C, D, E)."
+        "goal": "A on B AND A on C, plus C on D on E. (Physically Impossible)."
       },
       "objects": [
         {
@@ -348,7 +348,7 @@
           "attributes": {}
         }
       ],
-      "optimal_cost": 10,
+      "optimal_cost": -1,
       "difficulty": "medium"
     },
     {

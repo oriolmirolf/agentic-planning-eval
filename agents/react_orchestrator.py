@@ -122,12 +122,21 @@ class EpisodeTools:
     def get_history(self) -> str: 
         self._track("get_history")
         return self._call(GET_HISTORY)
-    def submit(self) -> str: 
-        self._track("submit")
-        return self._call(SUBMIT)
     def undo(self, to_step: int) -> str: 
         self._track("undo")
         return self._call(UNDO, to_step)
+
+    # --- UPDATED SUBMIT TOOL ---
+    def submit(self, unsolvable: bool = False) -> str: 
+        """
+        Call this when you have achieved the goal OR if you determine the goal is impossible.
+        Args:
+            unsolvable: Set to True ONLY if you have proven the goal cannot be reached.
+        """
+        self._track("submit")
+        if unsolvable:
+            return "Episode Terminated: DECLARED_UNSOLVABLE"
+        return self._call(SUBMIT)
 
     def act(self, step_text: str) -> str:
         self._track("act")
@@ -172,6 +181,7 @@ class PlannerSig(dspy.Signature):
     3. ACT: Propose ONE grounded action at a time using act(step_text).
     4. WARNING: A single invalid move (Precondition Violation) will terminate the episode immediately.
     5. TERMINATE: Call submit() when done.
+       - If you determine the goal is IMPOSSIBLE/UNSOLVABLE, call submit(unsolvable=True).
     """
     objective: str = dspy.InputField(desc="A short instruction.")
     final_plan: str = dspy.OutputField(desc="Return the final plan (from get_history()) or a failure note.")
@@ -191,22 +201,28 @@ class StrictReAct(dspy.ReAct):
             trajectory[f"tool_args_{idx}"] = pred.next_tool_args
 
             tool_name = pred.next_tool_name.strip()
-            if tool_name.lower() in ["submit", "finish", "submit_episode"]: tool_name = "submit"
+            # Normalize tool names
+            if tool_name.lower() in ["finish", "submit_episode"]: tool_name = "submit"
             elif tool_name not in self.tools and tool_name.lower() in self.tools: tool_name = tool_name.lower()
 
+            # --- SUBMIT HANDLING ---
             if tool_name == "submit":
                 try:
                     tool_fn = self.tools[tool_name]
                     observation = tool_fn(**pred.next_tool_args)
                     trajectory[f"observation_{idx}"] = observation
-                    if "Accepted: YES" in str(observation):
+                    
+                    # STOP if plan accepted OR agent gave up explicitly
+                    if "Accepted: YES" in str(observation) or "DECLARED_UNSOLVABLE" in str(observation):
                         return dspy.Prediction(trajectory=trajectory, final_plan=str(observation))
+                        
                 except Exception as err:
                     trajectory[f"observation_{idx}"] = f"Error: {err}"
                     return dspy.Prediction(trajectory=trajectory, final_plan=f"Submit Failed: {err}")
                 trajectory["stop_reason"] = "submit_break"
                 break
 
+            # --- STANDARD TOOL HANDLING ---
             try:
                 if tool_name not in self.tools:
                      observation = f"Error: Tool '{tool_name}' not found."
@@ -214,8 +230,11 @@ class StrictReAct(dspy.ReAct):
                     tool_fn = self.tools[tool_name]
                     observation = tool_fn(**pred.next_tool_args)
                 trajectory[f"observation_{idx}"] = observation
+                
+                # Check for lucky completion via standard tools (rare)
                 if "Accepted: YES" in str(observation) or "Success" in str(observation):
                     return dspy.Prediction(trajectory=trajectory, final_plan=str(observation))
+                    
             except AgentDeath as e:
                 trajectory[f"observation_{idx}"] = f"FATAL DOMAIN ERROR: {e}"
                 trajectory["fatal_error_log"] = str(e)
@@ -249,18 +268,31 @@ def discover_problem_indices(examples_dir: Path, domain: str) -> list[int]:
             if m: idxs.append(int(m.group(1)))
     return sorted(set(idxs))
 
-def load_costs(domain_dir: Path) -> dict[int, int]:
+def load_problem_meta(domain_dir: Path) -> dict[int, dict]:
+    """
+    Reads prompts.json to find optimal costs.
+    Convention: optimal_cost = -1 means UNSOLVABLE.
+    Returns: {problem_id: {'cost': int, 'solvable': bool}}
+    """
     path = domain_dir / "prompts.json"
-    costs = {}
+    meta = {}
     if path.exists():
         try:
             data = json.loads(path.read_text())
             for p in data.get("problems", []):
                 pid = p.get("id", "")
                 m = re.search(r"p(\d+)", pid, re.IGNORECASE)
-                if m and "optimal_cost" in p: costs[int(m.group(1))] = int(p["optimal_cost"])
+                if m: 
+                    idx = int(m.group(1))
+                    raw_cost = p.get("optimal_cost", 0)
+                    
+                    # Logic: -1 means Unsolvable
+                    if raw_cost == -1:
+                        meta[idx] = {"cost": 0, "solvable": False}
+                    else:
+                        meta[idx] = {"cost": raw_cost, "solvable": True}
         except Exception: pass
-    return costs
+    return meta
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -268,7 +300,7 @@ def main() -> None:
     ap.add_argument("--domains", nargs="*", default=None)
     ap.add_argument("--problems", nargs="*", type=int, default=None)
     ap.add_argument("--models", nargs="+", required=True)
-    ap.add_argument("--experiment", default="DSPy_ReAct_Sequential_Detailed")
+    ap.add_argument("--experiment", default="DSPy_ReAct_Mixed_Solvability")
     ap.add_argument("--tracking-uri", default=os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db"))
     ap.add_argument("--max-iters", type=int, default=40)
     ap.add_argument("--limit-multiplier", type=float, default=3.0)
@@ -308,11 +340,21 @@ def main() -> None:
             dspy.configure(lm=lm)
 
             for domain, index in episodes:
-                costs = load_costs(examples_dir / domain)
-                optimal_cost = costs.get(index, 0)
-                ep_limit = max(20, int(optimal_cost * args.limit_multiplier)) if optimal_cost > 0 else args.max_iters
+                # 1. LOAD META (Cost + Solvability)
+                meta_map = load_problem_meta(examples_dir / domain)
+                p_meta = meta_map.get(index, {"cost": 0, "solvable": True})
+                
+                optimal_cost = p_meta["cost"]
+                is_actually_solvable = p_meta["solvable"]
 
-                progress.update(task_id, description=f"Running {domain} p{index:02d} (Limit: {ep_limit})")
+                # 2. SET LIMITS
+                if is_actually_solvable and optimal_cost > 0:
+                    ep_limit = max(20, int(optimal_cost * args.limit_multiplier))
+                else:
+                    # Default limit for unsolvable or unknown cost problems
+                    ep_limit = args.max_iters
+
+                progress.update(task_id, description=f"Running {domain} p{index:02d} (Solvable: {is_actually_solvable})")
                 
                 start_time = time.time()
                 tools = EpisodeTools(domain=domain, index=index, strict_invalid_action=True)
@@ -331,7 +373,7 @@ def main() -> None:
                 error_msg = ""
                 submit_text = ""
                 steps_taken = 0
-                pred = None # Ensure pred is initialized
+                pred = None 
                 
                 run_name = f"{model_id.replace('/','_')}__{domain}__p{index:02d}__{int(time.time())}"
 
@@ -343,22 +385,48 @@ def main() -> None:
                             raise AgentDeath(pred.trajectory["fatal_error_log"])
 
                         final_plan = getattr(pred, "final_plan", "")
-                        if "Accepted: YES" in final_plan or "Success" in final_plan:
+                        
+                        # --- SCORING LOGIC ---
+                        
+                        # CASE A: Agent claims UNSOLVABLE
+                        if "DECLARED_UNSOLVABLE" in final_plan:
+                            submit_text = "UNSOLVABLE"
+                            steps_taken = count_history_steps(GET_HISTORY())
+                            
+                            if not is_actually_solvable:
+                                is_success = True
+                                finish_reason = "correctly_identified_unsolvable"
+                            else:
+                                is_success = False
+                                finish_reason = "false_negative_unsolvable" # Gave up on solvable
+
+                        # CASE B: Agent claims SUCCESS (Plan accepted by backend)
+                        elif "Accepted: YES" in final_plan:
                             submit_text = final_plan
+                            parsed = _parse_submit_text(submit_text)
+                            
+                            if not is_actually_solvable:
+                                # This implies the backend validator accepted a plan for an impossible problem
+                                # (Likely a bug in problem definition or validator)
+                                is_success = False 
+                                finish_reason = "false_positive_solvable" 
+                            else:
+                                is_success = True
+                                finish_reason = "success"
+                                steps_taken = parsed.get("plan_length") or count_history_steps(GET_HISTORY())
+
+                        # CASE C: Other failures (timeout, empty plan, etc)
                         else:
                             hist_check = GET_HISTORY()
-                            submit_text = hist_check if "Accepted: YES" in hist_check else SUBMIT()
-
-                        parsed = _parse_submit_text(submit_text)
-                        is_success = bool(parsed.get("accepted"))
-                        steps_taken = parsed.get("plan_length") or count_history_steps(GET_HISTORY())
-
-                        if is_success:
-                            finish_reason = "success"
-                        elif "Episode plan is empty" in submit_text or steps_taken == 0:
-                            finish_reason = "no_actions"
-                        else:
-                            finish_reason = "goal_not_reached"
+                            steps_taken = count_history_steps(hist_check)
+                            
+                            if "Accepted: YES" in hist_check:
+                                # Fallback: Agent forgot to call submit but finished task
+                                is_success = True
+                                finish_reason = "success_implicit"
+                            else:
+                                is_success = False
+                                finish_reason = "goal_not_reached"
 
                     except AgentDeath as e:
                         is_valid = False
@@ -372,11 +440,19 @@ def main() -> None:
                         steps_taken = count_history_steps(GET_HISTORY())
 
                     duration = time.time() - start_time
+                    
+                    # Calculate Score
                     score = 0.0
-                    if is_success and steps_taken > 0:
-                        score = optimal_cost / steps_taken if optimal_cost else 0.0
-                        if score > 1.0: score = 1.0
+                    if is_success:
+                        if not is_actually_solvable:
+                            # Correctly identified unsolvable -> Max Score
+                            score = 1.0 
+                        elif steps_taken > 0:
+                            # Solvable problem -> Efficiency Score
+                            score = optimal_cost / steps_taken if optimal_cost else 0.0
+                            if score > 1.0: score = 1.0
 
+                    # MLflow Logging
                     mlflow.set_tags({
                         "model": model_id,
                         "domain": domain,
@@ -387,31 +463,20 @@ def main() -> None:
                     
                     mlflow.log_metric("is_valid", 1.0 if is_valid else 0.0)
                     mlflow.log_metric("is_success", 1.0 if is_success else 0.0)
+                    mlflow.log_metric("is_ground_truth_solvable", 1.0 if is_actually_solvable else 0.0)
                     mlflow.log_metric("steps_taken", float(steps_taken))
                     mlflow.log_metric("optimal_steps", float(optimal_cost))
                     mlflow.log_metric("score", score)
                     mlflow.log_metric("wall_time", duration)
                     
-                    # Granular Error Metrics
+                    # Metrics
                     mlflow.log_metric("error_syntax", float(tools.syntax_error_count))
                     mlflow.log_metric("error_hallucinated_action", float(tools.hallucinated_action_count))
                     mlflow.log_metric("error_precondition", float(tools.precondition_error_count))
                     
-                    # Force log 0 for unused tools
-                    expected_tools = [
-                        "get_task_overview", "list_objects", "describe_object", 
-                        "list_actions", "describe_action", "get_state", 
-                        "get_history", "act", "submit",
-                    ]
-                    for tname in expected_tools:
-                        count = tools.tool_usage.get(tname, 0)
-                        mlflow.log_metric(f"tool_usage_{tname}", float(count))
-
                     if submit_text: mlflow.log_text(submit_text, "episode/submit.txt")
                     if error_msg: mlflow.log_text(error_msg, "episode/error_log.txt")
                     mlflow.log_text(GET_HISTORY(), "episode/history.txt")
-                    
-                    # --- RESTORED TRAJECTORY ---
                     if pred and hasattr(pred, "trajectory"):
                         mlflow.log_dict(pred.trajectory, "episode/trajectory.json")
 
@@ -419,10 +484,7 @@ def main() -> None:
                     if not is_valid: status_str = "[bold red]CRASH[/]"
                     progress.update(task_id, advance=1, status=f"Last: {domain} p{index} -> {status_str}")
                     
-                    grid = f"Steps: {steps_taken}/{optimal_cost} | Reason: {finish_reason} | Time: {duration:.1f}s"
-                    if tools.syntax_error_count > 0: grid += f" | SyntaxErrors: {tools.syntax_error_count}"
-                    if tools.hallucinated_action_count > 0: grid += f" | HallucinatedActions: {tools.hallucinated_action_count}"
-                    if error_msg: grid += f"\nError: {error_msg[:100]}"
+                    grid = f"Steps: {steps_taken}/{optimal_cost if is_actually_solvable else 'N/A'} | Reason: {finish_reason} | Time: {duration:.1f}s"
                     console.print(Panel(grid, title=f"{domain} p{index:02d}", border_style="green" if is_success else "red"))
 
 if __name__ == "__main__":

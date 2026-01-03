@@ -22,7 +22,11 @@
 
     ;; Vehicle locations
     (at-truck tru_b8d27c loc_174178)
-    (at-truck tru_77e50e loc_0508bc)
+    
+    ;; UNSOLVABLE MODIFICATION: The truck in the destination city is removed.
+    ;; Packages can fly to loc_0508bc, but cannot move to loc_568dd1.
+    ;; (at-truck tru_77e50e loc_0508bc)
+
     (at-airplane air_4f77ec loc_00d56d)
 
     ;; Packages

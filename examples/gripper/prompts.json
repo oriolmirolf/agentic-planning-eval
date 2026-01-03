@@ -84,11 +84,11 @@
   "problems": [
     {
       "id": "p01",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nA robot with two grippers needs to move a single ball from its current room to a target room.\n\n# Objects\n- room: roo_bcabae, roo_59c817\n- gripper: gri_32fce4, gri_42e92a\n- ball: bal_07e7cd\n\n# Initial State\n- The robot is at room roo_bcabae.\n- Gripper gri_32fce4 is free.\n- Gripper gri_42e92a is free.\n- Ball bal_07e7cd is at room roo_bcabae.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- Ball bal_07e7cd is at room roo_59c817.\n\n# Optimization Metric\n- Minimize total-cost.\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nA robot with two grippers needs to move a single ball from its current room to a target room. However, the robot's state indicates no grippers are currently available to use.\n\n# Objects\n- room: roo_bcabae, roo_59c817\n- gripper: gri_32fce4, gri_42e92a\n- ball: bal_07e7cd\n\n# Initial State\n- The robot is at room roo_bcabae.\n- Ball bal_07e7cd is at room roo_bcabae.\n- The total-cost is 0.\n- (Note: No grippers are listed as 'free').\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- Ball bal_07e7cd is at room roo_59c817.\n\n# Optimization Metric\n- Minimize total-cost.\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
       "overview": {
-        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
-        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd.",
-        "goal": "All balls are in roo_59c817: bal_07e7cd."
+        "description": "Transport a ball to target room, but robot has no free grippers.",
+        "initial_state": "Robot in roo_bcabae; NO grippers are free; bal_07e7cd in roo_bcabae.",
+        "goal": "bal_07e7cd in roo_59c817 (Impossible without grippers)."
       },
       "objects": [
         {
@@ -133,7 +133,7 @@
           }
         }
       ],
-      "optimal_cost": 3,
+      "optimal_cost": -1,
       "difficulty": "easy"
     },
     {
@@ -768,11 +768,11 @@
     },
     {
       "id": "p09",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nA robot with two grippers starts in room roo_bcabae with nine balls. The task is to move all nine balls from roo_bcabae to roo_59c817. Actions incur cost tracked by total-cost.\n\n# Objects\n- room: roo_bcabae, roo_59c817\n- gripper: gri_32fce4, gri_42e92a\n- ball: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be\n\n# Initial State\n- total-cost is 0\n- The robot is at-robot roo_bcabae\n- gri_32fce4 is free\n- gri_42e92a is free\n- bal_07e7cd is at roo_bcabae\n- bal_e201c6 is at roo_bcabae\n- bal_58c0e0 is at roo_bcabae\n- bal_a03846 is at roo_bcabae\n- bal_d17358 is at roo_bcabae\n- bal_f061eb is at roo_bcabae\n- bal_d0c241 is at roo_bcabae\n- bal_1a5af3 is at roo_bcabae\n- bal_4eb1be is at roo_bcabae\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- bal_07e7cd is at roo_59c817\n- bal_e201c6 is at roo_59c817\n- bal_58c0e0 is at roo_59c817\n- bal_a03846 is at roo_59c817\n- bal_d17358 is at roo_59c817\n- bal_f061eb is at roo_59c817\n- bal_d0c241 is at roo_59c817\n- bal_1a5af3 is at roo_59c817\n- bal_4eb1be is at roo_59c817\n\n# Optimization Metric\n- Minimize total-cost",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nA robot with two grippers is tasked with moving nine balls to a target room. While most balls are with the robot, one ball is located in an isolated room.\n\n# Objects\n- room: roo_bcabae, roo_59c817, roo_isolated\n- gripper: gri_32fce4, gri_42e92a\n- ball: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be\n\n# Initial State\n- total-cost is 0\n- The robot is at-robot roo_bcabae\n- gri_32fce4 is free\n- gri_42e92a is free\n- 8 balls (bal_07e7cd...bal_1a5af3) are at roo_bcabae\n- bal_4eb1be is at roo_isolated\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- All 9 balls must be at roo_59c817.\n\n# Optimization Metric\n- Minimize total-cost",
       "overview": {
-        "description": "Transport all balls from roo_bcabae to roo_59c817 using a two-gripper robot.",
-        "initial_state": "Robot in roo_bcabae; gri_32fce4 and gri_42e92a are free; balls in roo_bcabae: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be.",
-        "goal": "All balls are in roo_59c817: bal_07e7cd, bal_e201c6, bal_58c0e0, bal_a03846, bal_d17358, bal_f061eb, bal_d0c241, bal_1a5af3, bal_4eb1be."
+        "description": "Transport all balls to roo_59c817. One ball is in an unreachable room.",
+        "initial_state": "Robot at roo_bcabae. 8 balls at roo_bcabae. 1 ball (bal_4eb1be) at roo_isolated.",
+        "goal": "All 9 balls at roo_59c817 (Impossible to retrieve bal_4eb1be)."
       },
       "objects": [
         {
@@ -789,6 +789,14 @@
           "summary": "A room.",
           "attributes": {
             "role": "target"
+          }
+        },
+        {
+          "name": "roo_isolated",
+          "kind": "room",
+          "summary": "A room disconnected from the robot.",
+          "attributes": {
+            "role": "trap"
           }
         },
         {
@@ -884,12 +892,12 @@
           "kind": "ball",
           "summary": "Ball bal_4eb1be.",
           "attributes": {
-            "start_room": "roo_bcabae",
+            "start_room": "roo_isolated",
             "goal_room": "roo_59c817"
           }
         }
       ],
-      "optimal_cost": 27,
+      "optimal_cost": -1,
       "difficulty": "hard"
     },
     {

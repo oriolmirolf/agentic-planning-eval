@@ -495,11 +495,11 @@
     },
     {
       "id": "p04",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nTransport four packages from locations in cit_1bce23 to a destination location in cit_4ed853 using two trucks and one airplane. Trucks move within cities; the airplane moves between airports.\n\n# Objects\n- city: cit_1bce23, cit_4ed853\n- location: loc_174178, loc_00d56d, loc_568dd1, loc_0508bc\n- truck: tru_b8d27c, tru_77e50e\n- airplane: air_4f77ec\n- package: pac_e7813b, pac_342fd4, pac_71c170, pac_882714\n\n# Initial State\n- The total-cost is 0.\n- loc_174178 is in city cit_1bce23.\n- loc_00d56d is in city cit_1bce23.\n- loc_568dd1 is in city cit_4ed853.\n- loc_0508bc is in city cit_4ed853.\n- loc_00d56d is an airport.\n- loc_0508bc is an airport.\n- tru_b8d27c is at loc_174178.\n- tru_77e50e is at loc_0508bc.\n- air_4f77ec is at loc_00d56d.\n- pac_e7813b is at loc_174178.\n- pac_342fd4 is at loc_174178.\n- pac_71c170 is at loc_174178.\n- pac_882714 is at loc_174178.\n\n# Goal State\nThe plan is successful only when the following are TRUE:\n- pac_e7813b is at loc_568dd1.\n- pac_342fd4 is at loc_568dd1.\n- pac_71c170 is at loc_568dd1.\n- pac_882714 is at loc_568dd1.\n\n# Optimization Metric\n- Minimize total-cost.\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are included.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nTransport four packages from locations in cit_1bce23 to a destination location in cit_4ed853. Note that while air transport exists between cities, the destination city lacks a truck for local delivery.\n\n# Objects\n- city: cit_1bce23, cit_4ed853\n- location: loc_174178, loc_00d56d, loc_568dd1, loc_0508bc\n- truck: tru_b8d27c, tru_77e50e\n- airplane: air_4f77ec\n- package: pac_e7813b, pac_342fd4, pac_71c170, pac_882714\n\n# Initial State\n- The total-cost is 0.\n- loc_174178 is in city cit_1bce23.\n- loc_00d56d is in city cit_1bce23.\n- loc_568dd1 is in city cit_4ed853.\n- loc_0508bc is in city cit_4ed853.\n- loc_00d56d is an airport.\n- loc_0508bc is an airport.\n- tru_b8d27c is at loc_174178.\n- air_4f77ec is at loc_00d56d.\n- pac_e7813b is at loc_174178.\n- pac_342fd4 is at loc_174178.\n- pac_71c170 is at loc_174178.\n- pac_882714 is at loc_174178.\n- (Note: tru_77e50e is not present at any location).\n\n# Goal State\nThe plan is successful only when the following are TRUE:\n- pac_e7813b is at loc_568dd1.\n- pac_342fd4 is at loc_568dd1.\n- pac_71c170 is at loc_568dd1.\n- pac_882714 is at loc_568dd1.\n\n# Optimization Metric\n- Minimize total-cost.\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are included.",
       "overview": {
-        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
-        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714."
+        "description": "Ship packages between cities. The destination city (cit_4ed853) has no truck to move items from the airport to the final site.",
+        "initial_state": "Packages at loc_174178. Truck available in origin city. Plane available. No truck in destination city.",
+        "goal": "All packages at loc_568dd1 (Impossible due to missing last-mile vehicle)."
       },
       "objects": [
         {
@@ -564,9 +564,9 @@
         {
           "name": "tru_77e50e",
           "kind": "truck",
-          "summary": "Truck operating in cit_4ed853.",
+          "summary": "Broken/Missing Truck.",
           "attributes": {
-            "start_location": "loc_0508bc",
+            "start_location": null,
             "city": "cit_4ed853"
           }
         },
@@ -615,16 +615,16 @@
           }
         }
       ],
-      "optimal_cost": 27,
+      "optimal_cost": -1,
       "difficulty": "medium"
     },
     {
       "id": "p05",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nMove all packages from loc_174178 in city cit_1bce23 to loc_568dd1 in city cit_4ed853 using trucks within cities and an airplane between airports.\n\n# Objects\n- city: cit_1bce23, cit_4ed853\n- location: loc_174178, loc_00d56d, loc_568dd1, loc_0508bc\n- truck: tru_b8d27c, tru_77e50e\n- airplane: air_4f77ec\n- package: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807\n\n# Initial State\n- total-cost is 0.\n- loc_174178 is in city cit_1bce23.\n- loc_00d56d is in city cit_1bce23.\n- loc_568dd1 is in city cit_4ed853.\n- loc_0508bc is in city cit_4ed853.\n- loc_00d56d is an airport.\n- loc_0508bc is an airport.\n- tru_b8d27c is at loc_174178.\n- tru_77e50e is at loc_0508bc.\n- air_4f77ec is at loc_00d56d.\n- pac_e7813b is at loc_174178.\n- pac_342fd4 is at loc_174178.\n- pac_71c170 is at loc_174178.\n- pac_882714 is at loc_174178.\n- pac_bc8807 is at loc_174178.\n\n# Goal State\n- pac_e7813b is at loc_568dd1.\n- pac_342fd4 is at loc_568dd1.\n- pac_71c170 is at loc_568dd1.\n- pac_882714 is at loc_568dd1.\n- pac_bc8807 is at loc_568dd1.\n\n# Optimization Metric\n- Minimize total-cost.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nMove all packages from loc_174178 in city cit_1bce23 to loc_568dd1 in city cit_4ed853. Note that the location loc_00d56d in the origin city is not functioning as an airport.\n\n# Objects\n- city: cit_1bce23, cit_4ed853\n- location: loc_174178, loc_00d56d, loc_568dd1, loc_0508bc\n- truck: tru_b8d27c, tru_77e50e\n- airplane: air_4f77ec\n- package: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807\n\n# Initial State\n- total-cost is 0.\n- loc_174178 is in city cit_1bce23.\n- loc_00d56d is in city cit_1bce23.\n- loc_568dd1 is in city cit_4ed853.\n- loc_0508bc is in city cit_4ed853.\n- loc_0508bc is an airport.\n- (Note: loc_00d56d is NOT an airport).\n- tru_b8d27c is at loc_174178.\n- tru_77e50e is at loc_0508bc.\n- air_4f77ec is at loc_00d56d.\n- pac_e7813b is at loc_174178.\n- pac_342fd4 is at loc_174178.\n- pac_71c170 is at loc_174178.\n- pac_882714 is at loc_174178.\n- pac_bc8807 is at loc_174178.\n\n# Goal State\n- pac_e7813b is at loc_568dd1.\n- pac_342fd4 is at loc_568dd1.\n- pac_71c170 is at loc_568dd1.\n- pac_882714 is at loc_568dd1.\n- pac_bc8807 is at loc_568dd1.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
-        "description": "Ship packages from cit_1bce23 to cit_4ed853 using a truck + airplane + truck pipeline.",
-        "initial_state": "Packages at loc_174178: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807. tru_b8d27c at loc_174178. air_4f77ec at loc_00d56d. tru_77e50e at loc_0508bc.",
-        "goal": "All packages are at loc_568dd1: pac_e7813b, pac_342fd4, pac_71c170, pac_882714, pac_bc8807."
+        "description": "Ship packages from cit_1bce23 to cit_4ed853. The origin city's airport is closed/undefined.",
+        "initial_state": "Packages at loc_174178. Plane at loc_00d56d, but loc_00d56d lacks the 'airport' designation.",
+        "goal": "All packages at loc_568dd1 (Impossible as plane cannot operate without origin airport)."
       },
       "objects": [
         {
@@ -652,10 +652,10 @@
         {
           "name": "loc_00d56d",
           "kind": "location",
-          "summary": "The airport in cit_1bce23.",
+          "summary": "A location in cit_1bce23 (Not an airport).",
           "attributes": {
             "city": "cit_1bce23",
-            "airport": true
+            "airport": false
           }
         },
         {
@@ -698,7 +698,7 @@
         {
           "name": "air_4f77ec",
           "kind": "airplane",
-          "summary": "Cargo airplane connecting airports.",
+          "summary": "Cargo airplane.",
           "attributes": {
             "start_location": "loc_00d56d"
           }
@@ -749,7 +749,7 @@
           }
         }
       ],
-      "optimal_cost": 33,
+      "optimal_cost": -1,
       "difficulty": "medium"
     },
     {

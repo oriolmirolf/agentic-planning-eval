@@ -312,10 +312,10 @@
     },
     {
       "id": "p03",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance is about assigning two buckets to a single server within the same region while ensuring the server runs the required services and capacity/load constraints are respected.\n\n# Objects\n- region: ap_south\n- service: analytics, search\n- server: s1_ap\n- bucket: b1, b2\n\n# Initial State\n- s1_ap is located in region ap_south.\n- b1 is located in region ap_south.\n- b2 is located in region ap_south.\n- b1 requires service analytics.\n- b2 requires service search.\n- s1_ap is online.\n- s1_ap runs service search.\n- b1 is unassigned.\n- b2 is unassigned.\n- The capacity of s1_ap is 3.\n- The load of s1_ap is 0.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- b1 is assigned to s1_ap.\n- b2 is assigned to s1_ap.\n\n# Optimization Metric\n- Minimize total-cost\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance is about assigning two buckets to a single server within the same region while ensuring the server runs the required services and capacity/load constraints are respected.\n\n# Objects\n- region: ap_south\n- service: analytics, search\n- server: s1_ap\n- bucket: b1, b2\n\n# Initial State\n- s1_ap is located in region ap_south.\n- b1 is located in region ap_south.\n- b2 is located in region ap_south.\n- b1 requires service analytics.\n- b2 requires service search.\n- s1_ap is online.\n- s1_ap runs service search.\n- b1 is unassigned.\n- b2 is unassigned.\n- The capacity of s1_ap is 1.\n- The load of s1_ap is 0.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- b1 is assigned to s1_ap.\n- b2 is assigned to s1_ap.\n\n# Optimization Metric\n- Minimize total-cost\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
       "overview": {
         "description": "Enable analytics on the only server and assign both buckets to it while meeting per-bucket service requirements.",
-        "initial_state": "One server s1_ap in ap_south is online, capacity 3, running search only. Buckets b1 (analytics) and b2 (search) are unassigned.",
+        "initial_state": "One server s1_ap in ap_south is online, capacity 1, running search only. Buckets b1 (analytics) and b2 (search) are unassigned.",
         "goal": "b1 and b2 assigned to s1_ap; s1_ap runs analytics (for b1) and search (for b2); capacity respected."
       },
       "objects": [
@@ -343,7 +343,7 @@
           "summary": "Single server in ap_south.",
           "attributes": {
             "region": "ap_south",
-            "capacity": 3,
+            "capacity": 1,
             "initial_online": true,
             "initial_services": [
               "search"
@@ -371,7 +371,7 @@
           }
         }
       ],
-      "optimal_cost": 3,
+      "optimal_cost": -1,
       "difficulty": "Easy"
     },
     {
@@ -797,7 +797,7 @@
     },
     {
       "id": "p08",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance configures load balancing across two regions (us_east and eu_west). Certain buckets require specific services and are either assigned to servers or unassigned. Some current assignments violate region co-location. The objective is to consolidate all us_east buckets onto s2_us, all eu_west buckets onto s3_eu, and decommission s1_us, while minimizing total-cost.\n\n# Objects\n- region: us_east, eu_west\n- service: search, ads\n- server: s1_us, s2_us, s3_eu, s4_eu\n- bucket: b1, b2, b3, b4, b5, b6\n\n# Initial State\n- s1_us is in region us_east.\n- s2_us is in region us_east.\n- s3_eu is in region eu_west.\n- s4_eu is in region eu_west.\n- b1 is in region us_east.\n- b2 is in region us_east.\n- b3 is in region us_east.\n- b4 is in region eu_west.\n- b5 is in region eu_west.\n- b6 is in region eu_west.\n- b1 requires service search.\n- b2 requires service search.\n- b3 requires service ads.\n- b4 requires service search.\n- b5 requires service search.\n- b6 requires service ads.\n- s1_us is online.\n- s2_us is online.\n- s3_eu is online.\n- s4_eu is not online.\n- s1_us runs service search.\n- s2_us runs service search.\n- s2_us runs service ads.\n- s3_eu runs service search.\n- b1 is assigned to s1_us.\n- b2 is assigned to s2_us.\n- b3 is assigned to s2_us.\n- b4 is assigned to s1_us.\n- b5 is unassigned.\n- b6 is unassigned.\n- The capacity of s1_us is 3.\n- The capacity of s2_us is 3.\n- The capacity of s3_eu is 3.\n- The capacity of s4_eu is 3.\n- The load of s1_us is 2.\n- The load of s2_us is 2.\n- The load of s3_eu is 0.\n- The load of s4_eu is 0.\n- The total-cost is 0.\n\n# Goal State\nThe plan is successful only when the following are TRUE\n- b1 is assigned to s2_us.\n- b2 is assigned to s2_us.\n- b3 is assigned to s2_us.\n- b4 is assigned to s3_eu.\n- b5 is assigned to s3_eu.\n- b6 is assigned to s3_eu.\n- s2_us is online.\n- s3_eu is online.\n- s1_us is not online.\n\n# Optimization Metric\n- Minimize total-cost.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance configures load balancing across two regions (us_east and eu_west). Certain buckets require specific services and are either assigned to servers or unassigned. Some current assignments violate region co-location. The objective is to consolidate all us_east buckets onto s2_us, all eu_west buckets onto s3_eu, and decommission s1_us, while minimizing total-cost.\n\n# Objects\n- region: us_east, eu_west\n- service: search, ads\n- server: s1_us, s2_us, s3_eu, s4_eu\n- bucket: b1, b2, b3, b4, b5, b6\n\n# Initial State\n- s1_us is in region us_east.\n- s2_us is in region us_east.\n- s3_eu is in region eu_west.\n- s4_eu is in region eu_west.\n- b1 is in region us_east.\n- b2 is in region us_east.\n- b3 is in region us_east.\n- b4 is in region eu_west.\n- b5 is in region eu_west.\n- b6 is in region eu_west.\n- b1 requires service search.\n- b2 requires service search.\n- b3 requires service ads.\n- b4 requires service search.\n- b5 requires service search.\n- b6 requires service ads.\n- s1_us is online.\n- s2_us is online.\n- s3_eu is online.\n- s4_eu is not online.\n- s1_us runs service search.\n- s2_us runs service search.\n- s2_us runs service ads.\n- s3_eu runs service search.\n- b1 is assigned to s1_us.\n- b2 is assigned to s2_us.\n- b3 is assigned to s2_us.\n- b4 is assigned to s1_us.\n- b5 is unassigned.\n- b6 is unassigned.\n- The capacity of s1_us is 3.\n- The capacity of s2_us is 3.\n- The capacity of s3_eu is 2.\n- The capacity of s4_eu is 3.\n- The load of s1_us is 2.\n- The load of s2_us is 2.\n- The load of s3_eu is 0.\n- The load of s4_eu is 0.\n- The total-cost is 0.\n\n# Goal State\nThe plan is successful only when the following are TRUE\n- b1 is assigned to s2_us.\n- b2 is assigned to s2_us.\n- b3 is assigned to s2_us.\n- b4 is assigned to s3_eu.\n- b5 is assigned to s3_eu.\n- b6 is assigned to s3_eu.\n- s2_us is online.\n- s3_eu is online.\n- s1_us is not online.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
         "description": "Fix cross-region misrouting, ensure ads capability exists in eu_west, and decommission s1_us while serving all buckets in correct regions within capacity.",
         "initial_state": "us_east: s1_us online runs search; s2_us online runs search+ads. eu_west: s3_eu online runs search; s4_eu offline. b1 on s1_us; b2,b3 on s2_us; b4 misrouted on s1_us; b5,b6 unassigned.",
@@ -861,7 +861,7 @@
           "summary": "Search-only server in eu_west.",
           "attributes": {
             "region": "eu_west",
-            "capacity": 3,
+            "capacity": 2,
             "initial_online": true,
             "initial_services": [
               "search"
@@ -940,7 +940,7 @@
           }
         }
       ],
-      "optimal_cost": 8,
+      "optimal_cost": -1,
       "difficulty": "Hard"
     },
     {

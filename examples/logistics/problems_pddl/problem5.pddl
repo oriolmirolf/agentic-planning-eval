@@ -17,7 +17,9 @@
     (in-city loc_0508bc cit_4ed853)
 
     ;; Airports
-    (airport loc_00d56d)
+    ;; UNSOLVABLE MODIFICATION: Origin location loc_00d56d is NO LONGER an airport.
+    ;; The plane cannot take off/land here.
+    ;; (airport loc_00d56d)
     (airport loc_0508bc)
 
     ;; Vehicle locations

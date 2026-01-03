@@ -10,7 +10,10 @@
   (:init
     (patient-ward p1 w_icu)
 
-    (bed-ward b_icu w_icu)
+    ;; UNSOLVABLE MODIFICATION: 
+    ;; The only available bed 'b_icu' is now incorrectly zoned as a 'w_med' bed.
+    ;; p1 needs w_icu, so they cannot use b_icu.
+    (bed-ward b_icu w_med) ;; Was w_icu
     (bed-ward b_med w_med)
 
     (in-bed p1 b_med)   ; currently in wrong ward

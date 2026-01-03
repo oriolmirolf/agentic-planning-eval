@@ -282,11 +282,11 @@
     },
     {
       "id": "p03",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance involves moving a single patient to the correct ward bed within a hospital. The patient is currently occupying a bed in the wrong ward, and there is an available bed in the required ward.\n\n# Objects\n- patient: p1\n- bed: b_icu, b_med\n- ward: w_icu, w_med\n\n# Initial State\n- p1 requires ward w_icu.\n- b_icu belongs to ward w_icu.\n- b_med belongs to ward w_med.\n- p1 is in bed b_med.\n- b_icu is free.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p1 is in bed b_icu.\n\n# Optimization Metric\n- Minimize total-cost\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance involves moving a single patient to a specific target bed (b_icu). The patient requires the ICU ward (w_icu).\n\n# Objects\n- patient: p1\n- bed: b_icu, b_med\n- ward: w_icu, w_med\n\n# Initial State\n- p1 requires ward w_icu.\n- b_icu belongs to ward w_med. (Note: This bed is not in the ICU ward).\n- b_med belongs to ward w_med.\n- p1 is in bed b_med.\n- b_icu is free.\n- The total-cost is 0.\n\n# Goal State\n(The plan is successful only when the following are TRUE)\n- p1 is in bed b_icu.\n\n# Optimization Metric\n- Minimize total-cost\n\nFINAL CHECK\n- All object names match the PDDL exactly.\n- No Lisp syntax is used.\n- No hints or plans are provided.",
       "overview": {
-        "description": "Move an ICU-requiring patient from a medical bed into a free ICU bed.",
-        "initial_state": "p1 is in a med bed while requiring ICU. The ICU bed is free and clean.",
-        "goal": "p1 occupies the ICU bed."
+        "description": "Move patient p1 to bed b_icu.",
+        "initial_state": "p1 needs w_icu. b_icu is free but belongs to w_med (Type Mismatch).",
+        "goal": "p1 is in bed b_icu (Impossible due to ward mismatch)."
       },
       "objects": [
         {
@@ -304,7 +304,7 @@
         {
           "name": "p1",
           "kind": "patient",
-          "summary": "Patient requiring ICU but currently placed in medical bed.",
+          "summary": "Patient requiring ICU.",
           "attributes": {
             "required_ward": "w_icu",
             "isolation_required": false,
@@ -315,14 +315,11 @@
         {
           "name": "b_icu",
           "kind": "bed",
-          "summary": "ICU bed (free).",
+          "summary": "Free bed, but zoned for Medical ward.",
           "attributes": {
-            "ward": "w_icu",
-            "isolation_bed": false,
+            "ward": "w_med",
             "bed_free": true,
-            "bed_dirty": false,
-            "bed_blocked": false,
-            "occupied_by": null
+            "bed_dirty": false
           }
         },
         {
@@ -331,15 +328,12 @@
           "summary": "Medical bed currently holding p1.",
           "attributes": {
             "ward": "w_med",
-            "isolation_bed": false,
             "bed_free": false,
-            "bed_dirty": false,
-            "bed_blocked": false,
             "occupied_by": "p1"
           }
         }
       ],
-      "optimal_cost": 1,
+      "optimal_cost": -1,
       "difficulty": "easy"
     },
     {
@@ -593,11 +587,11 @@
     },
     {
       "id": "p06",
-      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance concerns reassigning three patients to the correct beds in their respective wards within a hospital, starting from a cyclic misplacement of occupants and with one extra ICU bed initially dirty.\n\n# Objects\n- patient: p_icu, p_surg, p_med\n- bed: b_icu1, b_icu2, b_surg1, b_med1\n- ward: w_icu, w_surg, w_med\n\n# Initial State\n- p_icu requires ward w_icu.\n- p_surg requires ward w_surg.\n- p_med requires ward w_med.\n- b_icu1 belongs to ward w_icu.\n- b_icu2 belongs to ward w_icu.\n- b_surg1 belongs to ward w_surg.\n- b_med1 belongs to ward w_med.\n- p_icu is in bed b_surg1.\n- p_surg is in bed b_med1.\n- p_med is in bed b_icu1.\n- b_icu2 is dirty.\n- The total-cost is 0.\n\n# Goal State\n- p_icu is in bed b_icu1.\n- p_surg is in bed b_surg1.\n- p_med is in bed b_med1.\n\n# Optimization Metric\n- Minimize total-cost.",
+      "prompt": "INSTANCE BRIEF\n\n# Summary\nThis instance concerns reassigning three patients to correct beds. The patients are currently in a cyclic deadlock (A in B's bed, B in C's bed, C in A's bed). There are no spare beds available.\n\n# Objects\n- patient: p_icu, p_surg, p_med\n- bed: b_icu1, b_surg1, b_med1\n- ward: w_icu, w_surg, w_med\n\n# Initial State\n- p_icu requires ward w_icu.\n- p_surg requires ward w_surg.\n- p_med requires ward w_med.\n- b_icu1 belongs to ward w_icu.\n- b_surg1 belongs to ward w_surg.\n- b_med1 belongs to ward w_med.\n- p_icu is in bed b_surg1.\n- p_surg is in bed b_med1.\n- p_med is in bed b_icu1.\n- The total-cost is 0.\n- (Note: No beds are free).\n\n# Goal State\n- p_icu is in bed b_icu1.\n- p_surg is in bed b_surg1.\n- p_med is in bed b_med1.\n\n# Optimization Metric\n- Minimize total-cost.",
       "overview": {
-        "description": "Resolve a 3-cycle of misplacements across wards using the only extra bed, which starts dirty.",
-        "initial_state": "Each patient is in the wrong ward bed. The only spare bed is ICU2 but dirty.",
-        "goal": "All patients placed into their correct ward beds."
+        "description": "Resolve a 3-cycle of misplacements with zero buffer beds.",
+        "initial_state": "3 patients occupy all 3 available beds in a cyclic mismatch. No free beds to initiate a transfer.",
+        "goal": "All patients placed correctly (Impossible deadlock)."
       },
       "objects": [
         {
@@ -624,8 +618,6 @@
           "summary": "ICU patient misplaced in surgery.",
           "attributes": {
             "required_ward": "w_icu",
-            "isolation_required": false,
-            "initial_status": "in-bed",
             "current_bed": "b_surg1"
           }
         },
@@ -635,8 +627,6 @@
           "summary": "Surgical patient misplaced in medical bed.",
           "attributes": {
             "required_ward": "w_surg",
-            "isolation_required": false,
-            "initial_status": "in-bed",
             "current_bed": "b_med1"
           }
         },
@@ -646,8 +636,6 @@
           "summary": "Medical patient misplaced in ICU bed.",
           "attributes": {
             "required_ward": "w_med",
-            "isolation_required": false,
-            "initial_status": "in-bed",
             "current_bed": "b_icu1"
           }
         },
@@ -657,24 +645,7 @@
           "summary": "ICU bed 1 occupied by p_med.",
           "attributes": {
             "ward": "w_icu",
-            "isolation_bed": false,
-            "bed_free": false,
-            "bed_dirty": false,
-            "bed_blocked": false,
-            "occupied_by": "p_med"
-          }
-        },
-        {
-          "name": "b_icu2",
-          "kind": "bed",
-          "summary": "ICU bed 2 (dirty buffer).",
-          "attributes": {
-            "ward": "w_icu",
-            "isolation_bed": false,
-            "bed_free": false,
-            "bed_dirty": true,
-            "bed_blocked": false,
-            "occupied_by": null
+            "bed_free": false
           }
         },
         {
@@ -683,11 +654,7 @@
           "summary": "Surgery bed occupied by p_icu.",
           "attributes": {
             "ward": "w_surg",
-            "isolation_bed": false,
-            "bed_free": false,
-            "bed_dirty": false,
-            "bed_blocked": false,
-            "occupied_by": "p_icu"
+            "bed_free": false
           }
         },
         {
@@ -696,15 +663,11 @@
           "summary": "Medical bed occupied by p_surg.",
           "attributes": {
             "ward": "w_med",
-            "isolation_bed": false,
-            "bed_free": false,
-            "bed_dirty": false,
-            "bed_blocked": false,
-            "occupied_by": "p_surg"
+            "bed_free": false
           }
         }
       ],
-      "optimal_cost": 8,
+      "optimal_cost": -1,
       "difficulty": "hard"
     },
     {

@@ -1,7 +1,6 @@
-;; Problem 5: reverse a four‑block tower
-;; Initial state: D is on C, C on B, B on A and A on the table.  D is the top
-;; block (clear) and the arm is empty.  Goal: reverse the tower so that A is on
-;; B, B on C and C on D (top to bottom: A, B, C, D).
+;; Problem 5: UNSOLVABLE (Circular Goal)
+;; Initial state: D is on C, C on B, B on A and A on the table.
+;; Goal: A on B, B on C, and C on A (Circular dependency).
 
 (define (problem p05)
   (:domain blocksworld)
@@ -12,5 +11,6 @@
          (on C B)
          (on D C)
          (clear D))
-  (:goal (and (on A B) (on B C) (on C D)))
+  ;; UNSOLVABLE MODIFICATION: Circular goal (A->B->C->A)
+  (:goal (and (on A B) (on B C) (on C A)))
 )

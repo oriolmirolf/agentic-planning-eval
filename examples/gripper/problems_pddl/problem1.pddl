@@ -8,8 +8,12 @@
   (:init
     (= (total-cost) 0)
     (at-robot roo_bcabae)
-    (free gri_32fce4)
-    (free gri_42e92a)
+    
+    ;; UNSOLVABLE MODIFICATION: Grippers are NOT free. 
+    ;; They are either holding ghost objects or just not listed as free.
+    ;; (free gri_32fce4)  <-- Removed
+    ;; (free gri_42e92a)  <-- Removed
+    
     (at bal_07e7cd roo_bcabae)
   )
   (:goal (and

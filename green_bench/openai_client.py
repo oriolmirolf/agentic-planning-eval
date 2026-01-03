@@ -123,7 +123,7 @@ class OpenAICompatClient:
                     kwargs.pop("temperature", None)
                     kwargs.pop("max_output_tokens", None)
                     # Some servers accept max_tokens instead
-                    kwargs["max_tokens"] = max_tokens
+                    # kwargs["max_tokens"] = max_tokens
                     resp = self._client.responses.create(**kwargs)
                 else:
                     raise

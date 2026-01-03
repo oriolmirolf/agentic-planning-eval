@@ -1,10 +1,10 @@
 import unittest
-import dspy
 from dataclasses import dataclass
 from unittest.mock import MagicMock
+import dspy
 
 # =============================================================================
-# 1. THE AGENT LOGIC (Fixed Order of Operations)
+# 1. THE AGENT LOGIC (The System Under Test)
 # =============================================================================
 
 class AgentDeath(Exception):
@@ -25,19 +25,22 @@ class StrictReAct(dspy.ReAct):
         for idx in range(max_iters):
             # 1. Thought & Tool Selection
             try:
-                # Mocked internal call
+                # We mock the internal dspy call in the tests, so this just passes
+                # the prediction object through.
                 pred = self._call_with_potential_trajectory_truncation(
                     self.react, trajectory, **input_args
                 )
             except ValueError:
                 break
 
-            # --- FIX: Record the thought/tool BEFORE checking for break conditions ---
+            # --- CRITICAL FIX: Record the thought/tool BEFORE checking for break conditions ---
             trajectory[f"thought_{idx}"] = pred.next_thought
             trajectory[f"tool_name_{idx}"] = pred.next_tool_name
             trajectory[f"tool_args_{idx}"] = pred.next_tool_args
 
             # 2. Check for "Submit" (Hard Stop)
+            # We check this BEFORE execution to handle the stop logic cleanly,
+            # but we still execute it to get the "Accepted: YES" observation.
             if pred.next_tool_name.lower() in ["submit", "finish", "submit_episode"]:
                 try:
                     tool_fn = self.tools[pred.next_tool_name]
@@ -53,6 +56,9 @@ class StrictReAct(dspy.ReAct):
 
             # 3. Standard Tool Execution
             try:
+                if pred.next_tool_name not in self.tools:
+                    raise Exception(f"Tool {pred.next_tool_name} not found")
+
                 tool_fn = self.tools[pred.next_tool_name]
                 args = pred.next_tool_args or {}
                 observation = tool_fn(**args)
@@ -72,12 +78,12 @@ class StrictReAct(dspy.ReAct):
         return dspy.Prediction(trajectory=trajectory)
 
 class PlannerSig(dspy.Signature):
-    """Mock Signature"""
+    """Mock Signature needed for dspy initialization"""
     objective: str = dspy.InputField()
     final_plan: str = dspy.OutputField()
 
 # =============================================================================
-# 2. MOCK TOOLS
+# 2. MOCK TOOLS (Simulating the Backend)
 # =============================================================================
 
 @dataclass
@@ -85,6 +91,8 @@ class MockEpisodeTools:
     def act(self, step_text: str) -> str:
         # SIMULATE BACKEND RESPONSES
         output = ""
+        step_text = step_text.lower()
+        
         if "syntax_error" in step_text:
             output = "Executed: NO\nReason: Action 'stack' expects 2 args, got 1."
         elif "fatal_error" in step_text:
@@ -114,29 +122,38 @@ class MockEpisodeTools:
     def get_task_overview(self) -> str: return "overview"
 
 # =============================================================================
-# 3. THE TESTS (Using MagicMock)
+# 3. THE TESTS
 # =============================================================================
 
 class TestStrictReActBehavior(unittest.TestCase):
     
     def setUp(self):
         self.mock_tools = MockEpisodeTools()
-        self.tools_list = [
-            self.mock_tools.act,
-            self.mock_tools.submit,
-            self.mock_tools.list_actions,
-            self.mock_tools.get_task_overview
-        ]
+        # dspy expects tools to be a list of functions or a dict
+        self.tools_dict = {
+            "act": self.mock_tools.act,
+            "submit": self.mock_tools.submit,
+            "list_actions": self.mock_tools.list_actions,
+            "get_task_overview": self.mock_tools.get_task_overview
+        }
         
-        # Initialize Agent with MagicMock for the internal predictor
-        self.agent = StrictReAct(PlannerSig, tools=self.tools_list, max_iters=10)
+        # Initialize Agent
+        # Note: We pass the dict of tools directly to satisfy dspy.ReAct requirements
+        self.agent = StrictReAct(PlannerSig, tools=list(self.tools_dict.values()), max_iters=10)
+        
+        # KEY STEP: Mock the internal predictor logic.
+        # This bypasses the LLM and allows us to inject deterministic thoughts/actions.
         self.agent.react = MagicMock()
+        
+        # We also need to map the list back to a dict for the manual lookup in Forward
+        self.agent.tools = self.tools_dict
 
     def test_submit_hard_stop(self):
         """Test that calling 'submit' ends the loop immediately."""
         print("\n[TEST] Submit Hard Stop")
         
         # Scenario: Act -> Submit -> (Should Stop)
+        # We inject a sequence of Predictions that the "LLM" would generate
         self.agent.react.side_effect = [
             dspy.Prediction(next_thought="Step 1", next_tool_name="act", next_tool_args={"step_text": "move a"}),
             dspy.Prediction(next_thought="Done", next_tool_name="submit", next_tool_args={}),
@@ -148,7 +165,7 @@ class TestStrictReActBehavior(unittest.TestCase):
 
         self.assertEqual(traj.get("stop_reason"), "submit_break")
         self.assertIn("observation_1", traj)
-        self.assertIn("thought_1", traj, "Failed to record thought for submit step!") # This was failing before
+        self.assertIn("thought_1", traj, "Failed to record thought for submit step!")
         self.assertNotIn("thought_2", traj)
         print("✅ PASS: Agent recorded submit step and stopped.")
 
