@@ -500,27 +500,38 @@ def run_suite(
 
                                                 t1 = time.time()
 
-                                                # Parse plan
-                                                parse = parse_plan(
-                                                    dom.name, raw_text)
-                                                success = 1 if parse.plan_text.strip() else 0  # noqa: E501
+# Parse plan
+                                                parse = parse_plan(dom.name, raw_text)
+
+                                                # [FIX 1] Determine Solvability (-1 implies Unsolvable)
+                                                optimal_cost_val = float(pr.optimal_cost) if pr.optimal_cost is not None else 0.0
+                                                is_ground_truth_solvable = (optimal_cost_val != -1.0)
+
+                                                # [FIX 2] Check if Model Claims Unsolvable
+                                                # We check both the parsed text and raw text to be safe
+                                                cleaned_plan = parse.plan_text.strip().upper()
+                                                model_claims_unsolvable = (
+                                                    "UNSOLVABLE" in cleaned_plan 
+                                                    or "UNSOLVABLE" in raw_text.strip().upper().splitlines()
+                                                )
 
                                                 # VAL evaluation
                                                 t2 = t1
                                                 metrics = None
                                                 eval_error: str | None = None
-                                                if parse.plan_text.strip():
+
+                                                # Only run VAL if the model provided a plan AND didn't just say UNSOLVABLE
+                                                if parse.plan_text.strip() and not model_claims_unsolvable:
                                                     try:
                                                         metrics = evaluate_with_val(
                                                             domain_pddl=dom.domain_pddl,
-                                                            problem_pddl=dom.problems_dir /  # noqa: E501
-                                                            f"problem{
-                                                                pr.index}.pddl",
+                                                            problem_pddl=dom.problems_dir / f"problem{pr.index}.pddl",
                                                             plan_text=parse.plan_text,
                                                             val_path=val_path,
                                                             val_flags=val_flags,
                                                             tolerance=tolerance,
                                                             check_redundancy=False,
+                                                            is_ground_truth_solvable=is_ground_truth_solvable, 
                                                         )
                                                     except Exception as e:
                                                         eval_error = str(e)
@@ -530,7 +541,7 @@ def run_suite(
                                                     t2 = time.time()
 
                                                 # Write artifacts locally
-                                                # (always include raw response)
+                                                # ... (Artifact writing code remains the same) ...
                                                 prob_out = (
                                                     session_out
                                                     / f"model={model_name}"
@@ -551,29 +562,56 @@ def run_suite(
                                                     trace_path.write_text(trace_text, encoding="utf-8")
                                                     mlflow.log_artifact(str(trace_path))
 
-                                                # Log required artifact (raw
-                                                # response)
-                                                mlflow.log_artifact(
-                                                    str(arts.raw_response_path))
-
-                                                # Useful additional artifacts
-                                                mlflow.log_artifact(
-                                                    str(arts.plan_path))
-                                                mlflow.log_artifact(
-                                                    str(arts.val_stdout_path))
-                                                mlflow.log_artifact(
-                                                    str(arts.val_stderr_path))
-                                                mlflow.log_artifact(
-                                                    str(arts.val_trace_path))
+                                                # Log artifacts
+                                                mlflow.log_artifact(str(arts.raw_response_path))
+                                                mlflow.log_artifact(str(arts.plan_path))
+                                                mlflow.log_artifact(str(arts.val_stdout_path))
+                                                mlflow.log_artifact(str(arts.val_stderr_path))
+                                                mlflow.log_artifact(str(arts.val_trace_path))
 
                                                 # Metrics (required + extras)
                                                 llm_dur = t1 - t0
-                                                eval_dur = (
-                                                    t2 - t1) if parse.plan_text.strip() else 0.0  # noqa: E501
+                                                eval_dur = (t2 - t1)
                                                 total_dur = t2 - t0
 
+                                                # [FIX 3] Recalculate Score Logic correctly
+                                                is_valid_run = 1.0 if (llm_error is None and eval_error is None) else 0.0
+
+                                                steps_taken = 0.0
+                                                is_success = 0.0
+                                                score = 0.0
+
+                                                if model_claims_unsolvable:
+                                                    # Case A: Model claims UNSOLVABLE
+                                                    if not is_ground_truth_solvable:
+                                                        # TRUE NEGATIVE: Correctly identified as unsolvable
+                                                        is_success = 1.0
+                                                        score = 1.0
+                                                        is_valid_run = 1.0 # Logic execution was valid
+                                                    else:
+                                                        # FALSE NEGATIVE: Gave up on a solvable problem
+                                                        is_success = 0.0
+                                                        score = 0.0
+                                                elif metrics:
+                                                    # Case B: Model provided a plan (VAL ran)
+                                                    steps_taken = float(metrics.length)
+                                                    
+                                                    if not is_ground_truth_solvable:
+                                                        # FALSE POSITIVE: Hallucinated a plan for an impossible problem
+                                                        # Even if VAL says 'valid' (unlikely), it is wrong vs ground truth
+                                                        is_success = 0.0
+                                                        score = 0.0
+                                                    else:
+                                                        # Case C: Standard solvable problem
+                                                        is_success = 1.0 if metrics.valid else 0.0
+                                                        if is_success > 0.0 and optimal_cost_val > 0.0 and steps_taken > 0.0:
+                                                            score = optimal_cost_val / steps_taken
+                                                            if score > 1.0: score = 1.0
+                                                        elif is_success > 0.0:
+                                                            score = 1.0
+
                                                 result = EvalResult(
-                                                    success=success,
+                                                    success=int(is_success),
                                                     llm_duration_seconds=llm_dur,
                                                     eval_duration_seconds=eval_dur,
                                                     total_duration_seconds=total_dur,
@@ -582,36 +620,19 @@ def run_suite(
                                                     failure=llm_error or eval_error,
                                                     artifacts=arts,
                                                 )
-                                                mlflow.log_metrics(
-                                                    result.to_mlflow_metrics())
 
-                                                is_valid = 1.0 if (llm_error is None and eval_error is None) else 0.0
-                                                optimal_steps = float(pr.optimal_cost or 0.0)
+                                                final_metrics = result.to_mlflow_metrics()
+                                                final_metrics.update({
+                                                    "is_valid": is_valid_run,
+                                                    "is_success": is_success,
+                                                    "steps_taken": steps_taken,
+                                                    "optimal_steps": optimal_cost_val,
+                                                    "score": score,
+                                                    "wall_time": float(total_dur),
+                                                    "is_ground_truth_solvable": 1.0 if is_ground_truth_solvable else 0.0
+                                                })
 
-                                                if metrics is not None:
-                                                    steps_taken = float(metrics.length)
-                                                    is_success = 1.0 if bool(metrics.valid) else 0.0
-                                                else:
-                                                    steps_taken = 0.0
-                                                    is_success = 0.0
-
-                                                score = 0.0
-                                                if is_success > 0.0 and steps_taken > 0.0 and optimal_steps > 0.0:
-                                                    score = optimal_steps / steps_taken
-                                                    if score > 1.0:
-                                                        score = 1.0
-
-                                                wall_time = float(total_dur)
-                                                mlflow.log_metrics(
-                                                    {
-                                                        "is_valid": is_valid,
-                                                        "is_success": is_success,
-                                                        "steps_taken": steps_taken,
-                                                        "optimal_steps": optimal_steps,
-                                                        "score": score,
-                                                        "wall_time": wall_time,
-                                                    }
-                                                )
+                                                mlflow.log_metrics(final_metrics)
 
                                                 # Extra scalar params/metrics
                                                 if pr.optimal_cost is not None:

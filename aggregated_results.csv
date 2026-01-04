@@ -1,0 +1,9 @@
+Model,Technique,Domain,N,Success %,Valid %,Avg Score,Avg Time,N_Solv,Succ_Solv,N_Unsolv,Succ_Unsolv
+Unknown,Default,Unknown,2,0.0,0.0,0.0,0.0,2,0.0,0,
+Unknown,Default,balancer,2,0.0,0.0,0.0,0.0,2,0.0,0,
+Unknown,Default,blocks,1,0.0,0.0,0.0,0.0,1,0.0,0,
+Unknown,Default,gripper,1,0.0,0.0,0.0,0.0,1,0.0,0,
+Unknown,Default,hospital,1,0.0,0.0,0.0,0.0,1,0.0,0,
+Unknown,baseline,Unknown,5,0.0,0.0,0.0,0.0,5,0.0,0,
+gpt-5-nano-2025-08-07,Default,Unknown,2,0.0,0.0,0.0,0.0,2,0.0,0,
+gpt-5-nano-2025-08-07,baseline,Unknown,35,0.7142857142857143,0.7142857142857143,0.7,27.054937158312118,28,0.8928571428571429,7,0.0

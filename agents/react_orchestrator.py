@@ -23,6 +23,20 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from dotenv import load_dotenv
+
+# --- 1. INITIALIZATION & SAFETY ---
+load_dotenv()
+
+# CRITICAL FIX: Disable LiteLLM's generic override so native Gemini logic works
+if "LITELLM_GENERIC_OPENAI_ONLY" in os.environ:
+    del os.environ["LITELLM_GENERIC_OPENAI_ONLY"]
+
+# CRITICAL FIX: Force Google SDK into "Developer Mode" (AI Studio)
+# This prevents the "Expected OAuth2" error by disabling Vertex AI lookups
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
+os.environ["GOOGLE_CLOUD_PROJECT"] = ""
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ""
 
 from green_agent import tools_backend as tb
 
@@ -72,6 +86,28 @@ def _parse_submit_text(text: str) -> dict[str, Any]:
         m = re.search(r"Plan length:\s*(\d+)", text)
         if m: out["plan_length"] = int(m.group(1))
     return out
+
+def get_reasoning_config(model_id: str) -> dict:
+    """
+    Directly toggles reasoning based on model string suffix.
+    Supports:
+    - gemini-3-flash-reasoning -> thinking_level: fast
+    - gemini-3-flash-no_reasoning -> thinking_level: minimal
+    - gpt-5-mini-reasoning -> reasoning_effort: medium
+    - gpt-5-mini-no_reasoning -> reasoning_effort: none
+    """
+    m = model_id.lower()
+    config = {}
+
+    if "no_reasoning" in m:
+        # 'none' is the OpenAI standard for turning off reasoning
+        config["reasoning_effort"] = "none"
+    else:
+        # 'low', 'medium', or 'high' are the OpenAI standards
+        # Gemini 3 Flash maps 'medium' to its own 'high' internal setting
+        config["reasoning_effort"] = "high" if "pro" in m else "low"
+            
+    return config
 
 # -----------------------------------------------------------------------------
 # 3. Episode Tools (Smart Error Categorization)
@@ -335,157 +371,209 @@ def main() -> None:
     with progress:
         task_id = progress.add_task(f"Running {len(episodes) * len(args.models)} episodes", total=len(episodes) * len(args.models), status="")
 
-        for model_id in args.models:
-            lm = dspy.LM(model_id, temperature=1, cache=False)
-            dspy.configure(lm=lm)
+        for model_id_raw in args.models:
+            reason_cfg = get_reasoning_config(model_id_raw)
+            model_id = model_id_raw.replace("-reasoning", "").replace("-no_reasoning", "")
 
-            for domain, index in episodes:
-                # 1. LOAD META (Cost + Solvability)
-                meta_map = load_problem_meta(examples_dir / domain)
-                p_meta = meta_map.get(index, {"cost": 0, "solvable": True})
+            # --- CLEAN KEY SWITCHING & PROVIDER LOGIC ---
+            if "gemini" in model_id:
+                # 1. Ensure we only have the Studio Key
+                api_key = os.getenv("GEMINI_API_KEY")
+                if not api_key:
+                    raise ValueError("GEMINI_API_KEY not found in .env")
                 
-                optimal_cost = p_meta["cost"]
-                is_actually_solvable = p_meta["solvable"]
+                os.environ["GEMINI_API_KEY"] = api_key
+                # IMPORTANT: Unset OpenAI vars to prevent cross-talk
+                if "OPENAI_API_KEY" in os.environ: del os.environ["OPENAI_API_KEY"]
+                if "OPENAI_BASE_URL" in os.environ: del os.environ["OPENAI_BASE_URL"]
 
-                # 2. SET LIMITS
-                if is_actually_solvable and optimal_cost > 0:
-                    ep_limit = max(20, int(optimal_cost * args.limit_multiplier))
+            else:
+                # 2. Use OpenAI Key
+                api_key = os.getenv("REAL_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    raise ValueError("OPENAI_API_KEY not found in .env")
+                
+                os.environ["OPENAI_API_KEY"] = api_key
+                os.environ["OPENAI_BASE_URL"] = "https://api.openai.com/v1"
+
+            with mlflow.start_run(run_name=f"parent_{model_id_raw}"):
+
+                # --- INITIALIZE LM WITH NATIVE PROVIDERS ---
+                if "gemini" in model_id:
+                    
+                    # Uses 'gemini/' prefix -> Forces LiteLLM to use the Studio Path
+                    lm = dspy.LM(
+                        f"gemini/{model_id}", 
+                        api_key=os.environ["GEMINI_API_KEY"], 
+                        temperature=0.0,
+                        cache=False,
+                        extra_body=reason_cfg 
+                    )
                 else:
-                    # Default limit for unsolvable or unknown cost problems
-                    ep_limit = args.max_iters
-
-                progress.update(task_id, description=f"Running {domain} p{index:02d} (Solvable: {is_actually_solvable})")
+                    # Uses standard OpenAI path
+                    lm = dspy.LM(
+                        model_id, 
+                        api_key=os.environ["OPENAI_API_KEY"],
+                        temperature=0.0, 
+                        cache=False,
+                        extra_body=reason_cfg
+                    )
                 
-                start_time = time.time()
-                tools = EpisodeTools(domain=domain, index=index, strict_invalid_action=True)
-                tools.reset()
-
-                tool_fns = [
-                    tools.get_task_overview, tools.list_actions, tools.list_objects,
-                    tools.describe_action, tools.describe_object, tools.get_state,
-                    tools.get_history, tools.act, tools.submit,
-                ]
-                planner = StrictReAct(PlannerSig, tools=tool_fns, max_iters=ep_limit)
-
-                is_success = False
-                is_valid = True
-                finish_reason = "unknown"
-                error_msg = ""
-                submit_text = ""
-                steps_taken = 0
-                pred = None 
+                dspy.configure(lm=lm)
                 
-                run_name = f"{model_id.replace('/','_')}__{domain}__p{index:02d}__{int(time.time())}"
+                mlflow.set_tags({
+                    "model": model_id,
+                    "reasoning_mode": str(reason_cfg.get("thinking_mode") or reason_cfg.get("reasoning_effort")),
+                    "ablation_active": os.getenv("ABLATION_MODE", "false")
+                })
 
-                with mlflow.start_run(run_name=run_name):
-                    try:
-                        pred = planner(objective="Solve the current episode.")
-                        
-                        if hasattr(pred, "trajectory") and pred.trajectory.get("fatal_error_log"):
-                            raise AgentDeath(pred.trajectory["fatal_error_log"])
+                for domain, index in episodes:
+                    # 1. LOAD META (Cost + Solvability)
+                    meta_map = load_problem_meta(examples_dir / domain)
+                    p_meta = meta_map.get(index, {"cost": 0, "solvable": True})
+                    
+                    optimal_cost = p_meta["cost"]
+                    is_actually_solvable = p_meta["solvable"]
 
-                        final_plan = getattr(pred, "final_plan", "")
-                        
-                        # --- SCORING LOGIC ---
-                        
-                        # CASE A: Agent claims UNSOLVABLE
-                        if "DECLARED_UNSOLVABLE" in final_plan:
-                            submit_text = "UNSOLVABLE"
+                    # 2. SET LIMITS
+                    if is_actually_solvable and optimal_cost > 0:
+                        ep_limit = max(20, int(optimal_cost * args.limit_multiplier))
+                    else:
+                        # Default limit for unsolvable or unknown cost problems
+                        ep_limit = args.max_iters
+
+                    progress.update(task_id, description=f"Running {domain} p{index:02d} (Solvable: {is_actually_solvable})")
+                    
+                    start_time = time.time()
+                    tools = EpisodeTools(domain=domain, index=index, strict_invalid_action=True)
+                    tools.reset()
+
+                    tool_fns = [
+                        tools.get_task_overview, tools.list_actions, tools.list_objects,
+                        tools.describe_action, tools.describe_object, tools.get_state,
+                        tools.get_history, tools.act, tools.submit,
+                    ]
+                    planner = StrictReAct(PlannerSig, tools=tool_fns, max_iters=ep_limit)
+
+                    is_success = False
+                    is_valid = True
+                    finish_reason = "unknown"
+                    error_msg = ""
+                    submit_text = ""
+                    steps_taken = 0
+                    pred = None 
+                    
+                    run_name = f"{model_id.replace('/','_')}__{domain}__p{index:02d}__{int(time.time())}"
+
+                    with mlflow.start_run(run_name=run_name, nested=True):
+                        try:
+                            pred = planner(objective="Solve the current episode.")
+                            
+                            if hasattr(pred, "trajectory") and pred.trajectory.get("fatal_error_log"):
+                                raise AgentDeath(pred.trajectory["fatal_error_log"])
+
+                            final_plan = getattr(pred, "final_plan", "")
+                            
+                            # --- SCORING LOGIC ---
+                            
+                            # CASE A: Agent claims UNSOLVABLE
+                            if "DECLARED_UNSOLVABLE" in final_plan:
+                                submit_text = "UNSOLVABLE"
+                                steps_taken = count_history_steps(GET_HISTORY())
+                                
+                                if not is_actually_solvable:
+                                    is_success = True
+                                    finish_reason = "correctly_identified_unsolvable"
+                                else:
+                                    is_success = False
+                                    finish_reason = "false_negative_unsolvable" # Gave up on solvable
+
+                            # CASE B: Agent claims SUCCESS (Plan accepted by backend)
+                            elif "Accepted: YES" in final_plan:
+                                submit_text = final_plan
+                                parsed = _parse_submit_text(submit_text)
+                                
+                                if not is_actually_solvable:
+                                    # This implies the backend validator accepted a plan for an impossible problem
+                                    # (Likely a bug in problem definition or validator)
+                                    is_success = False 
+                                    finish_reason = "false_positive_solvable" 
+                                else:
+                                    is_success = True
+                                    finish_reason = "success"
+                                    steps_taken = parsed.get("plan_length") or count_history_steps(GET_HISTORY())
+
+                            # CASE C: Other failures (timeout, empty plan, etc)
+                            else:
+                                hist_check = GET_HISTORY()
+                                steps_taken = count_history_steps(hist_check)
+                                
+                                if "Accepted: YES" in hist_check:
+                                    # Fallback: Agent forgot to call submit but finished task
+                                    is_success = True
+                                    finish_reason = "success_implicit"
+                                else:
+                                    is_success = False
+                                    finish_reason = "goal_not_reached"
+
+                        except AgentDeath as e:
+                            is_valid = False
+                            finish_reason = "precondition_violation"
+                            error_msg = str(e)
                             steps_taken = count_history_steps(GET_HISTORY())
-                            
+                        except Exception as e:
+                            is_valid = False
+                            finish_reason = "crash"
+                            error_msg = str(e)
+                            steps_taken = count_history_steps(GET_HISTORY())
+
+                        duration = time.time() - start_time
+                        
+                        # Calculate Score
+                        score = 0.0
+                        if is_success:
                             if not is_actually_solvable:
-                                is_success = True
-                                finish_reason = "correctly_identified_unsolvable"
-                            else:
-                                is_success = False
-                                finish_reason = "false_negative_unsolvable" # Gave up on solvable
+                                # Correctly identified unsolvable -> Max Score
+                                score = 1.0 
+                            elif steps_taken > 0:
+                                # Solvable problem -> Efficiency Score
+                                score = optimal_cost / steps_taken if optimal_cost else 0.0
+                                if score > 1.0: score = 1.0
 
-                        # CASE B: Agent claims SUCCESS (Plan accepted by backend)
-                        elif "Accepted: YES" in final_plan:
-                            submit_text = final_plan
-                            parsed = _parse_submit_text(submit_text)
-                            
-                            if not is_actually_solvable:
-                                # This implies the backend validator accepted a plan for an impossible problem
-                                # (Likely a bug in problem definition or validator)
-                                is_success = False 
-                                finish_reason = "false_positive_solvable" 
-                            else:
-                                is_success = True
-                                finish_reason = "success"
-                                steps_taken = parsed.get("plan_length") or count_history_steps(GET_HISTORY())
+                        # MLflow Logging
+                        mlflow.set_tags({
+                            "model": model_id,
+                            "domain": domain,
+                            "problem_index": str(index),
+                            "git_commit": git_meta.get("git_commit", "unknown"),
+                            "finish_reason": finish_reason
+                        })
+                        
+                        mlflow.log_metric("is_valid", 1.0 if is_valid else 0.0)
+                        mlflow.log_metric("is_success", 1.0 if is_success else 0.0)
+                        mlflow.log_metric("is_ground_truth_solvable", 1.0 if is_actually_solvable else 0.0)
+                        mlflow.log_metric("steps_taken", float(steps_taken))
+                        mlflow.log_metric("optimal_steps", float(optimal_cost))
+                        mlflow.log_metric("score", score)
+                        mlflow.log_metric("wall_time", duration)
+                        
+                        # Metrics
+                        mlflow.log_metric("error_syntax", float(tools.syntax_error_count))
+                        mlflow.log_metric("error_hallucinated_action", float(tools.hallucinated_action_count))
+                        mlflow.log_metric("error_precondition", float(tools.precondition_error_count))
+                        
+                        if submit_text: mlflow.log_text(submit_text, "episode/submit.txt")
+                        if error_msg: mlflow.log_text(error_msg, "episode/error_log.txt")
+                        mlflow.log_text(GET_HISTORY(), "episode/history.txt")
+                        if pred and hasattr(pred, "trajectory"):
+                            mlflow.log_dict(pred.trajectory, "episode/trajectory.json")
 
-                        # CASE C: Other failures (timeout, empty plan, etc)
-                        else:
-                            hist_check = GET_HISTORY()
-                            steps_taken = count_history_steps(hist_check)
-                            
-                            if "Accepted: YES" in hist_check:
-                                # Fallback: Agent forgot to call submit but finished task
-                                is_success = True
-                                finish_reason = "success_implicit"
-                            else:
-                                is_success = False
-                                finish_reason = "goal_not_reached"
-
-                    except AgentDeath as e:
-                        is_valid = False
-                        finish_reason = "precondition_violation"
-                        error_msg = str(e)
-                        steps_taken = count_history_steps(GET_HISTORY())
-                    except Exception as e:
-                        is_valid = False
-                        finish_reason = "crash"
-                        error_msg = str(e)
-                        steps_taken = count_history_steps(GET_HISTORY())
-
-                    duration = time.time() - start_time
-                    
-                    # Calculate Score
-                    score = 0.0
-                    if is_success:
-                        if not is_actually_solvable:
-                            # Correctly identified unsolvable -> Max Score
-                            score = 1.0 
-                        elif steps_taken > 0:
-                            # Solvable problem -> Efficiency Score
-                            score = optimal_cost / steps_taken if optimal_cost else 0.0
-                            if score > 1.0: score = 1.0
-
-                    # MLflow Logging
-                    mlflow.set_tags({
-                        "model": model_id,
-                        "domain": domain,
-                        "problem_index": str(index),
-                        "git_commit": git_meta.get("git_commit", "unknown"),
-                        "finish_reason": finish_reason
-                    })
-                    
-                    mlflow.log_metric("is_valid", 1.0 if is_valid else 0.0)
-                    mlflow.log_metric("is_success", 1.0 if is_success else 0.0)
-                    mlflow.log_metric("is_ground_truth_solvable", 1.0 if is_actually_solvable else 0.0)
-                    mlflow.log_metric("steps_taken", float(steps_taken))
-                    mlflow.log_metric("optimal_steps", float(optimal_cost))
-                    mlflow.log_metric("score", score)
-                    mlflow.log_metric("wall_time", duration)
-                    
-                    # Metrics
-                    mlflow.log_metric("error_syntax", float(tools.syntax_error_count))
-                    mlflow.log_metric("error_hallucinated_action", float(tools.hallucinated_action_count))
-                    mlflow.log_metric("error_precondition", float(tools.precondition_error_count))
-                    
-                    if submit_text: mlflow.log_text(submit_text, "episode/submit.txt")
-                    if error_msg: mlflow.log_text(error_msg, "episode/error_log.txt")
-                    mlflow.log_text(GET_HISTORY(), "episode/history.txt")
-                    if pred and hasattr(pred, "trajectory"):
-                        mlflow.log_dict(pred.trajectory, "episode/trajectory.json")
-
-                    status_str = f"[bold green]OK {score:.2f}[/]" if is_success else f"[bold red]{finish_reason.upper()}[/]"
-                    if not is_valid: status_str = "[bold red]CRASH[/]"
-                    progress.update(task_id, advance=1, status=f"Last: {domain} p{index} -> {status_str}")
-                    
-                    grid = f"Steps: {steps_taken}/{optimal_cost if is_actually_solvable else 'N/A'} | Reason: {finish_reason} | Time: {duration:.1f}s"
-                    console.print(Panel(grid, title=f"{domain} p{index:02d}", border_style="green" if is_success else "red"))
+                        status_str = f"[bold green]OK {score:.2f}[/]" if is_success else f"[bold red]{finish_reason.upper()}[/]"
+                        if not is_valid: status_str = "[bold red]CRASH[/]"
+                        progress.update(task_id, advance=1, status=f"Last: {domain} p{index} -> {status_str}")
+                        
+                        grid = f"Steps: {steps_taken}/{optimal_cost if is_actually_solvable else 'N/A'} | Reason: {finish_reason} | Time: {duration:.1f}s"
+                        console.print(Panel(grid, title=f"{domain} p{index:02d}", border_style="green" if is_success else "red"))
 
 if __name__ == "__main__":
     main()

@@ -60,10 +60,10 @@ def _context(domain_prompt: str, problem_prompt: str) -> str:
     return _join(
         "You will receive:",
         "(1) a DOMAIN BRIEF describing available actions and their required argument order, and",
-        "(2) a PROBLEM PROMPT describing concrete objects, initial state, and goal.",
+        "(2) a INSTANCE BRIEF describing concrete objects, initial state, and goal.",
         "DOMAIN BRIEF:",
         domain_prompt,
-        "PROBLEM PROMPT:",
+        "INSTANCE BRIEF:",
         problem_prompt,
     )
 
@@ -73,9 +73,9 @@ _OUTPUT_REQUIREMENTS = """OUTPUT REQUIREMENTS (MANDATORY):
 - Inside the code block: one action per line, exactly in the form: action_name arg1 arg2 ...
 - Use ONLY action names that appear in the DOMAIN BRIEF (case-insensitive matching is allowed, but keep names consistent).
 - Use the EXACT argument order defined in the DOMAIN BRIEF.
-- Use ONLY object names that appear in the PROBLEM PROMPT (no renaming, no aliases, no added objects).
+- Use ONLY object names that appear in the INSTANCE BRIEF (no renaming, no aliases, no added objects).
 - Do NOT include numbering, commentary, blank lines, or multiple alternative plans.
-- If you are unsure, make the safest progress: prefer actions that you can justify from the PROBLEM PROMPT.
+- If you are unsure, make the safest progress: prefer actions that you can justify from the INSTANCE BRIEF.
 - Do NOT restate the task, the state, or the goal.
 - If the instance is unsolvable under the given constraints, output exactly one fenced code block containing:
 UNSOLVABLE
@@ -420,7 +420,7 @@ def _run_self_refine(
             "SELF-REFINE CRITIC:",
             "You are a strict plan critic.",
             "Do NOT output any code blocks.",
-            "Identify ONLY concrete issues you can verify from DOMAIN BRIEF / PROBLEM PROMPT / the candidate plan text:",
+            "Identify ONLY concrete issues you can verify from DOMAIN BRIEF / INSTANCE BRIEF / the candidate plan text:",
             "- invalid action names",
             "- invalid object names",
             "- wrong argument count or wrong argument order vs DOMAIN BRIEF",

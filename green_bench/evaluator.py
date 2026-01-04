@@ -111,6 +111,7 @@ def evaluate_with_val(
     val_flags: tuple[str, ...],
     tolerance: float,
     check_redundancy: bool = False,
+    is_ground_truth_solvable: bool = True,
 ) -> PlanMetrics:
     flags = (*val_flags, "-t", str(float(tolerance)))
     return compute_metrics(
@@ -120,6 +121,8 @@ def evaluate_with_val(
         val_path=val_path,
         flags=flags,
         check_redundancy=check_redundancy,
+        is_ground_truth_solvable=is_ground_truth_solvable,
+
     )
 
 
