@@ -62,9 +62,9 @@ DOMAIN BRIEF
 Now, generate the DOMAIN BRIEF.
 """
 
-INSTANCE_PROMPT_TEMPLATE = """You are an expert technical writer. Your goal is to convert a formal PDDL PROBLEM file into an "Instance Brief"—a clear, natural-language scenario description.
+INSTANCE_PROMPT_TEMPLATE = """You are an Objective Observer. Your goal is to describe a physical scene based on a PDDL PROBLEM file.
 
-The audience is an AI Planner. It has already received the "Domain Brief" (physics), so your job is ONLY to define the specific objects, the starting situation, and the goal.
+The audience is a human operator who needs to know the physical state of the world. They do NOT know PDDL. They do NOT want analysis. They just want a description of where things are.
 
 <DOMAIN_BRIEF>
 {{DOMAIN_BRIEF_NL}}
@@ -75,32 +75,49 @@ The audience is an AI Planner. It has already received the "Domain Brief" (physi
 </PROBLEM_PDDL>
 
 TASK
-Write an INSTANCE BRIEF.
+Write the INSTANCE BRIEF.
 
-TRANSLATION RULES
-1. **Exact Naming**: MUST use exact PDDL object names (e.g., "s1_eu", "truck-01").
-2. **Objects Section**: Keep this as a structured list. It serves as the "Inventory".
-3. **State & Goal**: Use **descriptive paragraphs**.
-   - Do NOT use bullet points for the state or goal.
-   - Group related facts (e.g., "All trucks are currently at the depot.").
-   - Describe the goal as a mission statement (e.g., "Your job is to deliver packages A and B to the warehouse.").
-4. **Closed World**: Assume unmentioned booleans are false.
+STRICT CONSTRAINTS (VIOLATIONS WILL CAUSE FAILURE):
+1. **NO PDDL JARGON:**
+   - NEVER use predicate names like `arm-empty`, `on-table`, `clear`, or `at-robot`.
+   - BAD: "arm-empty is true." -> GOOD: "The robot arm is currently holding nothing."
+   - BAD: "b1 is on-table." -> GOOD: "Block b1 is sitting on the table."
+   - BAD: "b1 is clear." -> GOOD: "There is nothing on top of b1."
+
+2. **NO META-COMMENTARY OR HINTS:**
+   - NEVER explain *why* something is the way it is.
+   - NEVER use phrases like "Closed-world assumption", "Note that", "Crucially", "However", or "This is impossible".
+   - If a room is isolated, just state: "Ball X is in Room Y." DO NOT add "which is unreachable."
+   - If a gripper is busy, just state: "The gripper is holding Ball Z." DO NOT add "and therefore cannot pick up anything else."
+
+3. **NATURAL GROUPING:**
+   - Group facts by *physical object* or *location*, NOT by predicate type.
+   - BAD:
+     - **Clear Status:** b1 is clear.
+     - **On Table Status:** b2 is on table.
+   - GOOD:
+     - **Layout:** Block b1 is on top of b2, which is sitting on the table.
+
+4. **Objects Section:** Keep as a structured list (Inventory).
 
 OUTPUT FORMAT
 
 INSTANCE BRIEF
 
 # Summary
-(1-2 sentences summarizing the scenario)
+(1 sentence describing the physical scene. E.g. "A robot arm with 3 blocks on a table.")
 
 # Objects
 - [Type Name]: [List of exact object names, comma-separated]
 
 # Initial State
-(Write 2-3 short paragraphs describing the current state of the world. Group objects by location or type. Use narrative flow.)
+(Describe the physical arrangement in 2-3 bullet points. Focus on *where things are* and *what state they are in*.)
+- **[Location/Object Group]:** [Natural language description. E.g. "The robot is at Location A."]
 
 # Goal State
-(Write a short paragraph describing the required final state. Integrate multiple goals into coherent sentences. Do NOT use bullet points.)
+(Describe the desired final arrangement using natural language. Do NOT use PDDL names.)
+- [Natural sentence 1]
+- [Natural sentence 2]
 
 # Optimization Metric
 (If metric exists: "Minimize [metric name]". Else: "None")
@@ -120,7 +137,8 @@ def generate_completion(full_prompt_text):
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": full_prompt_text}
             ],
-            temperature=0.0,
+            temperature=1.0,
+            reasoning_effort="minimal",
         )
         return completion.choices[0].message.content.strip()
     except Exception as e:
